@@ -26,6 +26,8 @@
  */
 
 #include <SDL/SDL.h>
+#include <GL/gl.h>
+#include <GL/glu.h>
 #include <assert.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -81,7 +83,7 @@ static size_t HEIGHT = 480;
 
 static uint8_t *buffer_sdl;
 SDL_Surface *data_sf;
-struct SDL_Renderer* data_rd;
+//struct SDL_Renderer* data_rd;
 
 static void errno_exit(const char *s)
 {
@@ -105,9 +107,45 @@ static int xioctl(int fd, int request, void *arg)
 
 static void render(SDL_Surface * sf)
 {
-    SDL_Surface *screen = SDL_GetVideoSurface();
-    if (SDL_BlitSurface(sf, NULL, screen, NULL) == 0)
-        SDL_UpdateRect(screen, 0, 0, 0, 0);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glLoadIdentity();
+
+//    SDL_Surface *screen = SDL_GetVideoSurface();
+
+//int bres = SDL_BlitSurface(sf, NULL, screen, NULL);
+//    if( bres == 0 )
+//    {
+//        SDL_UpdateRect(screen, 0, 0, 0, 0);
+//    }
+
+//printf( "SDL_BlitSurface = %i\n", bres );
+
+glDrawPixels( WIDTH,  HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, buffer_sdl);
+
+//    glBegin(GL_QUADS);
+//        glColor3f(1, 0, 0); glVertex3f(0, 0, 0);
+//        glColor3f(1, 1, 0); glVertex3f(100, 0, 0);
+//        glColor3f(1, 0, 1); glVertex3f(100, 100, 0);
+//        glColor3f(1, 1, 1); glVertex3f(0, 100, 0);
+//    glEnd();
+
+	glBegin( GL_LINES );
+        glColor3f(1, 0, 0); 
+	glVertex3f(0, 0, 0);
+        glVertex3f(500, 500, 0);
+	glVertex3f(500, 0, 0);
+        glVertex3f(0, 500, 0);
+	glEnd();
+
+    //SDL_Surface *screen = SDL_GetVideoSurface();
+    //if (SDL_BlitSurface(sf, NULL, screen, NULL) == 0)
+    //    SDL_GL_UpdateRect(screen, 0, 0, 0, 0);
+    /* Тут все свое ризуем */
+
+    SDL_GL_SwapBuffers();
+
+static int cnt=0;cnt++;if(!(cnt%200))printf( "cnt=%i\n", cnt );
+    
 }
 
 void YCbCrToRGB(int y, int cb, int cr, uint8_t * r, uint8_t * g, uint8_t * b)
@@ -207,14 +245,14 @@ static void process_image(const void *p)
 
     for (y = 0; y < HEIGHT; y++)
         for (x = 0; x < WIDTH; x += 2)
-            YUV422_to_RGB(buffer_sdl + (y * WIDTH + x) * 3,
+            YUV422_to_RGB(buffer_sdl + ((HEIGHT-y-1) * WIDTH + x) * 3,
                           buffer_yuv + (y * WIDTH + x) * 2);
 
 	/* Найти на катринке наши обьекты */
 	
 	/* Вот тут мы можем добавить в картинку свои рисунки */
-	SDL_SetRenderDrawColor( data_rd, 255/* r */, 0/* g */, 0/* b */, 255/* a */);
-	SDL_RenderDrawLine( data_rd, 1/*x1*/, 1/*y1*/, 100/*x2*/, 100/*y2*/);
+	//SDL_SetRenderDrawColor( data_rd, 255/* r */, 0/* g */, 0/* b */, 255/* a */);
+	//SDL_RenderDrawLine( data_rd, 1/*x1*/, 1/*y1*/, 100/*x2*/, 100/*y2*/);
 
 
 
@@ -768,6 +806,9 @@ static void open_device(void)
     }
 }
 
+
+
+
 static void usage(FILE * fp, int argc, char **argv)
 {
     fprintf(fp,
@@ -802,6 +843,11 @@ static int sdl_filter(const SDL_Event * event)
 }
 
 #define mask32(BYTE) (*(uint32_t *)(uint8_t [4]){ [BYTE] = 0xff })
+
+
+
+
+
 
 int main(int argc, char **argv)
 {
@@ -865,18 +911,42 @@ int main(int argc, char **argv)
     if (SDL_Init(SDL_INIT_VIDEO) < 0)
         return 1;
 
+    SDL_GL_SetAttribute(SDL_GL_RED_SIZE,            8);
+    SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE,          8);
+    SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE,           8);
+    SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE,          8);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE,          16);
+    SDL_GL_SetAttribute(SDL_GL_BUFFER_SIZE,            32);
+    SDL_GL_SetAttribute(SDL_GL_ACCUM_RED_SIZE,        8);
+    SDL_GL_SetAttribute(SDL_GL_ACCUM_GREEN_SIZE,    8);
+    SDL_GL_SetAttribute(SDL_GL_ACCUM_BLUE_SIZE,        8);
+    SDL_GL_SetAttribute(SDL_GL_ACCUM_ALPHA_SIZE,    8);
+    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS,  1);
+    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES,  2);
+
+
     SDL_WM_SetCaption("SDL Video viewer", NULL);
 
     buffer_sdl = (uint8_t*)malloc(WIDTH*HEIGHT*3);
 
-    SDL_SetVideoMode(WIDTH, HEIGHT, 24, SDL_HWSURFACE);
+    SDL_SetVideoMode(WIDTH, HEIGHT, 24, SDL_HWSURFACE | SDL_GL_DOUBLEBUFFER | SDL_OPENGL);
+
+	glClearColor(0, 0, 0, 0);
+	glViewport(0, 0, WIDTH, HEIGHT);
+	glMatrixMode(GL_PROJECTION);
+	glLoadIdentity();
+	glOrtho(0, WIDTH, HEIGHT, 0, 1, -1);
+	glMatrixMode(GL_MODELVIEW);
+	glEnable(GL_TEXTURE_2D);
+	glLoadIdentity();
+
 
     data_sf = SDL_CreateRGBSurfaceFrom(buffer_sdl, WIDTH, HEIGHT,
                                        24, WIDTH * 3,
                                        mask32(0), mask32(1), mask32(2), 0);
 
 	/* Добавим render */
-	data_rd = SDL_CreateSoftwareRenderer( data_sf );
+	//data_rd = SDL_CreateSoftwareRenderer( data_sf );
 
 
 
@@ -889,7 +959,7 @@ int main(int argc, char **argv)
     uninit_device();
     close_device();
 
-	SDL_DestroyRenderer( data_rd );
+	//SDL_DestroyRenderer( data_rd );
     SDL_FreeSurface(data_sf);
     free(buffer_sdl);
 
