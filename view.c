@@ -137,6 +137,19 @@ glDrawPixels( WIDTH,  HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, buffer_sdl);
         glVertex3f(0, 500, 0);
 	glEnd();
 
+	int i;
+	for( i = 0; i < 1000; i++ )
+	{
+		int x = rand() % WIDTH;
+		int y = rand() % HEIGHT;
+		glBegin( GL_LINES );
+		glVertex3f( x-10, y-10, 0);
+		glVertex3f( x+10, y+10, 0);
+		glVertex3f( x+10, y-10, 0);
+		glVertex3f( x-10, y+10, 0);
+		glEnd();
+	}
+
     //SDL_Surface *screen = SDL_GetVideoSurface();
     //if (SDL_BlitSurface(sf, NULL, screen, NULL) == 0)
     //    SDL_GL_UpdateRect(screen, 0, 0, 0, 0);
