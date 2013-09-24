@@ -105,6 +105,35 @@ static int xioctl(int fd, int request, void *arg)
     return r;
 }
 
+
+
+static int detect_white_border( float x, float y, float * plus_x, float * plus_y, float dx, float dy )
+{
+	int s_id = ( ( int )x + ( HEIGHT - ( int )y - 1 ) * WIDTH ) * 3/*RGB*/;
+	int f_id = s_id;
+	while( 1 )
+	{
+		*plus_x += dx; if( ( *plus_x > 100.0 ) || ( *plus_x < -100.0 ) ) return -1;
+		*plus_y += dy; if( ( *plus_y > 100.0 ) || ( *plus_y < -100.0 ) ) return -1;
+
+		f_id = ( ( int )( x + *plus_x ) + ( HEIGHT - ( int )y - ( int )*plus_y - 1 ) * WIDTH ) * 3/*RGB*/;
+
+		if( ( f_id < 0 ) || ( f_id >= WIDTH*HEIGHT*3 ) ) return -1;
+
+		int dc = buffer_sdl[ f_id ] - buffer_sdl[ s_id ];
+		dc += buffer_sdl[ f_id + 1 ] - buffer_sdl[ s_id + 1 ];
+		dc += buffer_sdl[ f_id + 2 ] - buffer_sdl[ s_id + 2 ];
+		if( dc > 200/* to white */) 
+		{
+			return 0;
+		}
+
+		if( dc < -100 /* to black */) return -1;
+	}
+	return 0;
+}
+
+
 static void render(SDL_Surface * sf)
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -129,24 +158,45 @@ glDrawPixels( WIDTH,  HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, buffer_sdl);
 //        glColor3f(1, 1, 1); glVertex3f(0, 100, 0);
 //    glEnd();
 
-	glBegin( GL_LINES );
-        glColor3f(1, 0, 0); 
-	glVertex3f(0, 0, 0);
-        glVertex3f(500, 500, 0);
-	glVertex3f(500, 0, 0);
-        glVertex3f(0, 500, 0);
-	glEnd();
+	//glBegin( GL_LINES );
+        //glColor3f(1, 0, 0); 
+	//glVertex3f(0, 0, 0);
+        //glVertex3f(500, 500, 0);
+	//glVertex3f(500, 0, 0);
+        //glVertex3f(0, 500, 0);
+	//glEnd();
 
 	int i;
 	for( i = 0; i < 1000; i++ )
 	{
-		int x = rand() % WIDTH;
-		int y = rand() % HEIGHT;
+		/* случайная праямая до краев темного участка */
+		int detected = 0;
+
+		float x = ( float )( rand() % 100 ) / 100.0 * WIDTH;
+		float y = ( float )( rand() % 100 ) / 100.0 * HEIGHT;
+
+		float ang = ( float )( rand() % 628 ) / 100.0;
+		float dx = cos( ang );
+		float dy = sin( ang );
+
+		/* Определим края линий */
+		float plus_x = 0.0;
+		float plus_y = 0.0;
+		float minus_x = 0.0;
+		float minus_y = 0.0;
+
+		if( !detect_white_border( x, y, &plus_x, &plus_y, dx, dy ) )
+			if( !detect_white_border( x, y, &minus_x, &minus_y, dx * (-1), dy * (-1) ) )
+				detected++;
+
 		glBegin( GL_LINES );
-		glVertex3f( x-10, y-10, 0);
-		glVertex3f( x+10, y+10, 0);
-		glVertex3f( x+10, y-10, 0);
-		glVertex3f( x-10, y+10, 0);
+		if( detected )
+			glColor3f(1, 0, 0); 
+		else
+			glColor3f(0.7, 0.7, 0.7);
+
+		glVertex3f( x + minus_x, y + minus_y, 0);
+		glVertex3f( x + plus_x, y + plus_y, 0);
 		glEnd();
 	}
 
