@@ -36,6 +36,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <math.h>
 
 #define __USE_BSD
 
@@ -179,25 +180,72 @@ glDrawPixels( WIDTH,  HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, buffer_sdl);
 		float dx = cos( ang );
 		float dy = sin( ang );
 
-		/* Определим края линий */
-		float plus_x = 0.0;
-		float plus_y = 0.0;
-		float minus_x = 0.0;
-		float minus_y = 0.0;
 
-		if( !detect_white_border( x, y, &plus_x, &plus_y, dx, dy ) )
-			if( !detect_white_border( x, y, &minus_x, &minus_y, dx * (-1), dy * (-1) ) )
-				detected++;
+		float tail_x = x;
+		float tail_y = y;
+		int ri;
+		for( ri = 0; ri < 20; ri++ )
+		{
+			/* Определим края линий */
+			float plus_x = 0.0;
+			float plus_y = 0.0;
+			float minus_x = 0.0;
+			float minus_y = 0.0;
+	
+			if( detect_white_border( x, y, &plus_x, &plus_y, dx, dy ) ) break;
+			if( detect_white_border( x, y, &minus_x, &minus_y, dx * (-1), dy * (-1) ) ) break;
 
-		glBegin( GL_LINES );
-		if( detected )
-			glColor3f(1, 0, 0); 
-		else
-			glColor3f(0.7, 0.7, 0.7);
+//			glBegin( GL_LINES );
+//			glColor3f(1, 0.5, 0.5); 
+//			glVertex3f( x + minus_x, y + minus_y, 0);
+//			glVertex3f( x + plus_x, y + plus_y, 0);
+//			glEnd();
 
-		glVertex3f( x + minus_x, y + minus_y, 0);
-		glVertex3f( x + plus_x, y + plus_y, 0);
-		glEnd();
+			float dt = dx; dx = dy; dy = dt;
+			x += ( plus_x + minus_x ) / 2;
+			y += ( plus_y + minus_y ) / 2;
+
+
+			glBegin( GL_LINES );
+			glColor3f(0.3, ri*1.0/20, 0.3); 
+			glVertex3f( x, y, 0);
+			glVertex3f( tail_x, tail_y, 0);
+			glEnd();
+
+			tail_x = x;
+			tail_y = y;
+		}
+
+//		if( detected )
+//		{
+//			int md_detected = 0;
+
+			/* Двойной серединный перпендикуляр */
+//			float md_x = x + ( plus_x + minus_x ) / 2;
+//			float md_y = y + ( plus_y + minus_y ) / 2;
+//			float md_ang = M_PI / 2 + ang;
+//			float md_dx = cos( md_ang );
+//			float md_dy = sin( md_ang );
+
+//			float md_plus_x = 0.0;
+//			float md_plus_y = 0.0;
+//			float md_minus_x = 0.0;
+//			float md_minus_y = 0.0;
+
+//			if( !detect_white_border( md_x, md_y, &md_plus_x, &md_plus_y, md_dx, md_dy ) )
+//				if( !detect_white_border( md_x, md_y, &md_minus_x, &md_minus_y, md_dx * (-1), md_dy * (-1) ) )
+//					md_detected++;
+
+//			if( md_detected )
+//			{
+//				glBegin( GL_LINES );
+//				glColor3f(0, 1, 0);
+//				glVertex3f( md_x + md_minus_x, md_y + md_minus_y, 0);
+//				glVertex3f( md_x + md_plus_x, md_y + md_plus_y, 0);
+//				glEnd();
+//			}
+//		}
+
 	}
 
     //SDL_Surface *screen = SDL_GetVideoSurface();
