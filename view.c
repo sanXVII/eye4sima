@@ -172,7 +172,7 @@ glDrawPixels( WIDTH,  HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, buffer_sdl);
 	{
 		/* случайная праямая до краев темного участка */
 		int detected = 0;
-		int ortogonal_steps = 10;
+		int ortogonal_steps = 4;
 
 		float x = ( float )( rand() % 100 ) / 100.0 * WIDTH;
 		float y = ( float )( rand() % 100 ) / 100.0 * HEIGHT;
@@ -230,7 +230,7 @@ glDrawPixels( WIDTH,  HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, buffer_sdl);
 
 		if( ri == ortogonal_steps )
 		{
-			if( qlen < 2500.0 )
+			if( qlen < 2000.0 )
 			{
 				/* Good spot */
 				printf( "spot %f:%f .. qual %f .. qlen %f\n", x, y, qtail / qlen, qlen );
