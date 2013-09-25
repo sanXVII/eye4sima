@@ -124,7 +124,7 @@ static int detect_white_border( float x, float y, float * plus_x, float * plus_y
 		int dc = buffer_sdl[ f_id ] - buffer_sdl[ s_id ];
 		dc += buffer_sdl[ f_id + 1 ] - buffer_sdl[ s_id + 1 ];
 		dc += buffer_sdl[ f_id + 2 ] - buffer_sdl[ s_id + 2 ];
-		if( dc > 200/* to white */) 
+		if( dc > 250/* to white */) 
 		{
 			return 0;
 		}
@@ -168,13 +168,17 @@ glDrawPixels( WIDTH,  HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, buffer_sdl);
 	//glEnd();
 
 	int i;
-	for( i = 0; i < 1000; i++ )
+	for( i = 0; i < 500; i++ )
 	{
 		/* случайная праямая до краев темного участка */
 		int detected = 0;
+		int ortogonal_steps = 10;
 
 		float x = ( float )( rand() % 100 ) / 100.0 * WIDTH;
 		float y = ( float )( rand() % 100 ) / 100.0 * HEIGHT;
+
+		double qtail = 0.0;
+		double qlen = 0.0;
 
 		float ang = ( float )( rand() % 628 ) / 100.0;
 		float dx = cos( ang );
@@ -184,7 +188,7 @@ glDrawPixels( WIDTH,  HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, buffer_sdl);
 		float tail_x = x;
 		float tail_y = y;
 		int ri;
-		for( ri = 0; ri < 20; ri++ )
+		for( ri = 0; ri < ortogonal_steps; ri++ )
 		{
 			/* Определим края линий */
 			float plus_x = 0.0;
@@ -207,13 +211,37 @@ glDrawPixels( WIDTH,  HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, buffer_sdl);
 
 
 			glBegin( GL_LINES );
-			glColor3f(0.3, ri*1.0/20, 0.3); 
+			glColor3f(0.3, ri*1.0/ortogonal_steps, 0.3); 
 			glVertex3f( x, y, 0);
 			glVertex3f( tail_x, tail_y, 0);
 			glEnd();
 
+			qtail += ( ( tail_x - x ) * ( tail_x - x ) 
+					+ ( tail_y - y ) * ( tail_y - y ) ) 
+				* ( float )ri / ( float )ortogonal_steps;
+
+			qlen += ( ( plus_x - minus_x ) * ( plus_x - minus_x )
+					+ ( plus_y - minus_y ) * ( plus_y - minus_y ) )
+				* ( float )ri / ( float )ortogonal_steps;
+
 			tail_x = x;
 			tail_y = y;
+		}
+
+		if( ri == ortogonal_steps )
+		{
+			if( qlen < 2500.0 )
+			{
+				/* Good spot */
+				printf( "spot %f:%f .. qual %f .. qlen %f\n", x, y, qtail / qlen, qlen );
+				glBegin( GL_LINE_LOOP );
+				glColor3f( 1.0, 0.2, 0.2 );
+				glVertex3f( x - 20.0, y, 0 );
+				glVertex3f( x, y - 20.0, 0 );
+				glVertex3f( x + 20.0, y, 0 );
+				glVertex3f( x, y + 20.0, 0 );
+				glEnd();
+			}
 		}
 
 //		if( detected )
