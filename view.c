@@ -168,11 +168,11 @@ glDrawPixels( WIDTH,  HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, buffer_sdl);
 	//glEnd();
 
 	int i;
-	for( i = 0; i < 500; i++ )
+	for( i = 0; i < 20000; i++ )
 	{
 		/* случайная праямая до краев темного участка */
 		int detected = 0;
-		int ortogonal_steps = 4;
+		int ortogonal_steps = 18;
 
 		float x = ( float )( rand() % 100 ) / 100.0 * WIDTH;
 		float y = ( float )( rand() % 100 ) / 100.0 * HEIGHT;
@@ -205,7 +205,18 @@ glDrawPixels( WIDTH,  HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, buffer_sdl);
 //			glVertex3f( x + plus_x, y + plus_y, 0);
 //			glEnd();
 
-			float dt = dx; dx = dy; dy = dt;
+			if( !( ri % 2 ) )
+			{
+				float dt = dx; dx = dy; dy = dt;
+			}
+			else
+			{
+				/* Random axis */
+				ang = ( float )( rand() % 628 ) / 100.0;
+				dx = cos( ang );
+				dy = sin( ang );
+			}
+
 			x += ( plus_x + minus_x ) / 2;
 			y += ( plus_y + minus_y ) / 2;
 
@@ -230,7 +241,7 @@ glDrawPixels( WIDTH,  HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, buffer_sdl);
 
 		if( ri == ortogonal_steps )
 		{
-			if( qlen < 2000.0 )
+			if( qlen < 3200.0 )
 			{
 				/* Good spot */
 				printf( "spot %f:%f .. qual %f .. qlen %f\n", x, y, qtail / qlen, qlen );
