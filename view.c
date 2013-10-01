@@ -124,7 +124,7 @@ static int detect_white_border( float x, float y, float * plus_x, float * plus_y
 		int dc = buffer_sdl[ f_id ] - buffer_sdl[ s_id ];
 		dc += buffer_sdl[ f_id + 1 ] - buffer_sdl[ s_id + 1 ];
 		dc += buffer_sdl[ f_id + 2 ] - buffer_sdl[ s_id + 2 ];
-		if( dc > 250/* to white */) 
+		if( dc > 200/* to white */) 
 		{
 			return 0;
 		}
@@ -168,7 +168,7 @@ glDrawPixels( WIDTH,  HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, buffer_sdl);
 	//glEnd();
 
 	int i;
-	for( i = 0; i < 20000; i++ )
+	for( i = 0; i < 5000; i++ )
 	{
 		/* случайная праямая до краев темного участка */
 		int detected = 0;
@@ -178,6 +178,9 @@ glDrawPixels( WIDTH,  HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, buffer_sdl);
 		float y = ( float )( rand() % 100 ) / 100.0 * HEIGHT;
 
 		double qtail = 0.0;
+		double qtail_s = 0.0;
+		double qtail_x = 0.0;
+		double qtail_y = 0.0;
 		double qlen = 0.0;
 
 		float ang = ( float )( rand() % 628 ) / 100.0;
@@ -227,9 +230,11 @@ glDrawPixels( WIDTH,  HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, buffer_sdl);
 			glVertex3f( tail_x, tail_y, 0);
 			glEnd();
 
-			qtail += ( ( tail_x - x ) * ( tail_x - x ) 
-					+ ( tail_y - y ) * ( tail_y - y ) ) 
-				* ( float )ri / ( float )ortogonal_steps;
+			qtail_x += ( tail_x - x ) * ( float )ri / ( float )ortogonal_steps;
+			qtail_y += ( tail_y - y ) * ( float )ri / ( float )ortogonal_steps;
+			qtail_s += ( ( tail_x - x ) * ( tail_x - x ) 
+					+ ( tail_y - y ) * ( tail_y - y ) )
+					* ( float )ri / ( float )ortogonal_steps;
 
 			qlen += ( ( plus_x - minus_x ) * ( plus_x - minus_x )
 					+ ( plus_y - minus_y ) * ( plus_y - minus_y ) )
@@ -238,13 +243,15 @@ glDrawPixels( WIDTH,  HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, buffer_sdl);
 			tail_x = x;
 			tail_y = y;
 		}
+		qtail = qtail_x * qtail_x + qtail_y * qtail_y;
 
 		if( ri == ortogonal_steps )
 		{
-			if( qlen < 3200.0 )
+			if( ( qtail < 10.0 ) && ( qtail_s < 10.0 ) )
 			{
 				/* Good spot */
-				printf( "spot %f:%f .. qual %f .. qlen %f\n", x, y, qtail / qlen, qlen );
+				printf( "spot %f:%f .. qual %f .. qlen %f .. qtail %f .. qtail_s %f\n", 
+					x, y, qtail / qlen, qlen, qtail, qtail_s );
 				glBegin( GL_LINE_LOOP );
 				glColor3f( 1.0, 0.2, 0.2 );
 				glVertex3f( x - 20.0, y, 0 );
