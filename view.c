@@ -1,28 +1,6 @@
-/* 
- * Copyright (C) 2012 by Tomasz Moń <desowin@gmail.com>
- *
- * compile with:
- *   gcc -o sdlvideoviewer sdlvideoviewer.c -lSDL
- *
- * Based on V4L2 video capture example
- *
- * All rights reserved.
- *
- * Permission to use, copy, modify, and distribute this software for any purpose
- * with or without fee is hereby granted, provided that the above copyright
- * notice and this permission notice appear in all copies.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF THIRD PARTY RIGHTS. IN
- * NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
- * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
- * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
- * OR OTHER DEALINGS IN THE SOFTWARE.
- *
- * Except as contained in this notice, the name of a copyright holder shall not
- * be used in advertising or otherwise to promote the sale, use or other dealings
- * in this Software without prior written authorization of the copyright holder.
+
+/*
+ * Based on V4L2 video capture example from https://github.com/desowin/v4l-examples
  */
 
 #include <SDL/SDL.h>
