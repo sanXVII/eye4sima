@@ -1,6 +1,28 @@
-
-/*
- * Based on V4L2 video capture example from https://github.com/desowin/v4l-examples
+/* 
+ * Copyright (C) 2012 by Tomasz Moń <desowin@gmail.com>
+ *
+ * compile with:
+ *   gcc -o sdlvideoviewer sdlvideoviewer.c -lSDL
+ *
+ * Based on V4L2 video capture example
+ *
+ * All rights reserved.
+ *
+ * Permission to use, copy, modify, and distribute this software for any purpose
+ * with or without fee is hereby granted, provided that the above copyright
+ * notice and this permission notice appear in all copies.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF THIRD PARTY RIGHTS. IN
+ * NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
+ * OR OTHER DEALINGS IN THE SOFTWARE.
+ *
+ * Except as contained in this notice, the name of a copyright holder shall not
+ * be used in advertising or otherwise to promote the sale, use or other dealings
+ * in this Software without prior written authorization of the copyright holder.
  */
 
 #include <SDL/SDL.h>
@@ -33,6 +55,8 @@
 
 #include <linux/videodev2.h>
 
+#include "process.h"
+
 #define CLEAR(x) memset (&(x), 0, sizeof (x))
 
 #define max(a, b) (a > b ? a : b)
@@ -57,7 +81,7 @@ static int fd = -1;
 struct buffer *buffers = NULL;
 static unsigned int n_buffers = 0;
 
-static size_t WIDTH = 640;
+static size_t WIDTH = 800;
 static size_t HEIGHT = 480;
 
 static uint8_t *buffer_sdl;
@@ -86,200 +110,22 @@ static int xioctl(int fd, int request, void *arg)
 
 
 
-static int detect_white_border( float x, float y, float * plus_x, float * plus_y, float dx, float dy )
-{
-	int s_id = ( ( int )x + ( HEIGHT - ( int )y - 1 ) * WIDTH ) * 3/*RGB*/;
-	int f_id = s_id;
-	while( 1 )
-	{
-		*plus_x += dx; if( ( *plus_x > 100.0 ) || ( *plus_x < -100.0 ) ) return -1;
-		*plus_y += dy; if( ( *plus_y > 100.0 ) || ( *plus_y < -100.0 ) ) return -1;
-
-		f_id = ( ( int )( x + *plus_x ) + ( HEIGHT - ( int )y - ( int )*plus_y - 1 ) * WIDTH ) * 3/*RGB*/;
-
-		if( ( f_id < 0 ) || ( f_id >= WIDTH*HEIGHT*3 ) ) return -1;
-
-		int dc = buffer_sdl[ f_id ] - buffer_sdl[ s_id ];
-		dc += buffer_sdl[ f_id + 1 ] - buffer_sdl[ s_id + 1 ];
-		dc += buffer_sdl[ f_id + 2 ] - buffer_sdl[ s_id + 2 ];
-		if( dc > 200/* to white */) 
-		{
-			return 0;
-		}
-
-		if( dc < -100 /* to black */) return -1;
-	}
-	return 0;
-}
-
 
 static void render(SDL_Surface * sf)
 {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     glLoadIdentity();
 
-//    SDL_Surface *screen = SDL_GetVideoSurface();
-
-//int bres = SDL_BlitSurface(sf, NULL, screen, NULL);
-//    if( bres == 0 )
-//    {
-//        SDL_UpdateRect(screen, 0, 0, 0, 0);
-//    }
-
-//printf( "SDL_BlitSurface = %i\n", bres );
-
-glDrawPixels( WIDTH,  HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, buffer_sdl);
-
-//    glBegin(GL_QUADS);
-//        glColor3f(1, 0, 0); glVertex3f(0, 0, 0);
-//        glColor3f(1, 1, 0); glVertex3f(100, 0, 0);
-//        glColor3f(1, 0, 1); glVertex3f(100, 100, 0);
-//        glColor3f(1, 1, 1); glVertex3f(0, 100, 0);
-//    glEnd();
-
-	//glBegin( GL_LINES );
-        //glColor3f(1, 0, 0); 
-	//glVertex3f(0, 0, 0);
-        //glVertex3f(500, 500, 0);
-	//glVertex3f(500, 0, 0);
-        //glVertex3f(0, 500, 0);
-	//glEnd();
-
-	int i;
-	for( i = 0; i < 5000; i++ )
-	{
-		/* случайная праямая до краев темного участка */
-		int detected = 0;
-		int ortogonal_steps = 18;
-
-		float x = ( float )( rand() % 100 ) / 100.0 * WIDTH;
-		float y = ( float )( rand() % 100 ) / 100.0 * HEIGHT;
-
-		double qtail = 0.0;
-		double qtail_s = 0.0;
-		double qtail_x = 0.0;
-		double qtail_y = 0.0;
-		double qlen = 0.0;
-
-		float ang = ( float )( rand() % 628 ) / 100.0;
-		float dx = cos( ang );
-		float dy = sin( ang );
+	/* Отрисовка фона - изображение с камеры */
+	glDrawPixels( WIDTH,  HEIGHT, GL_RGB, GL_UNSIGNED_BYTE, buffer_sdl);
 
 
-		float tail_x = x;
-		float tail_y = y;
-		int ri;
-		for( ri = 0; ri < ortogonal_steps; ri++ )
-		{
-			/* Определим края линий */
-			float plus_x = 0.0;
-			float plus_y = 0.0;
-			float minus_x = 0.0;
-			float minus_y = 0.0;
-	
-			if( detect_white_border( x, y, &plus_x, &plus_y, dx, dy ) ) break;
-			if( detect_white_border( x, y, &minus_x, &minus_y, dx * (-1), dy * (-1) ) ) break;
-
-//			glBegin( GL_LINES );
-//			glColor3f(1, 0.5, 0.5); 
-//			glVertex3f( x + minus_x, y + minus_y, 0);
-//			glVertex3f( x + plus_x, y + plus_y, 0);
-//			glEnd();
-
-			if( !( ri % 2 ) )
-			{
-				float dt = dx; dx = dy; dy = dt;
-			}
-			else
-			{
-				/* Random axis */
-				ang = ( float )( rand() % 628 ) / 100.0;
-				dx = cos( ang );
-				dy = sin( ang );
-			}
-
-			x += ( plus_x + minus_x ) / 2;
-			y += ( plus_y + minus_y ) / 2;
-
-
-			glBegin( GL_LINES );
-			glColor3f(0.3, ri*1.0/ortogonal_steps, 0.3); 
-			glVertex3f( x, y, 0);
-			glVertex3f( tail_x, tail_y, 0);
-			glEnd();
-
-			qtail_x += ( tail_x - x ) * ( float )ri / ( float )ortogonal_steps;
-			qtail_y += ( tail_y - y ) * ( float )ri / ( float )ortogonal_steps;
-			qtail_s += ( ( tail_x - x ) * ( tail_x - x ) 
-					+ ( tail_y - y ) * ( tail_y - y ) )
-					* ( float )ri / ( float )ortogonal_steps;
-
-			qlen += ( ( plus_x - minus_x ) * ( plus_x - minus_x )
-					+ ( plus_y - minus_y ) * ( plus_y - minus_y ) )
-				* ( float )ri / ( float )ortogonal_steps;
-
-			tail_x = x;
-			tail_y = y;
-		}
-		qtail = qtail_x * qtail_x + qtail_y * qtail_y;
-
-		if( ri == ortogonal_steps )
-		{
-			if( ( qtail < 10.0 ) && ( qtail_s < 10.0 ) )
-			{
-				/* Good spot */
-				printf( "spot %f:%f .. qual %f .. qlen %f .. qtail %f .. qtail_s %f\n", 
-					x, y, qtail / qlen, qlen, qtail, qtail_s );
-				glBegin( GL_LINE_LOOP );
-				glColor3f( 1.0, 0.2, 0.2 );
-				glVertex3f( x - 20.0, y, 0 );
-				glVertex3f( x, y - 20.0, 0 );
-				glVertex3f( x + 20.0, y, 0 );
-				glVertex3f( x, y + 20.0, 0 );
-				glEnd();
-			}
-		}
-
-//		if( detected )
-//		{
-//			int md_detected = 0;
-
-			/* Двойной серединный перпендикуляр */
-//			float md_x = x + ( plus_x + minus_x ) / 2;
-//			float md_y = y + ( plus_y + minus_y ) / 2;
-//			float md_ang = M_PI / 2 + ang;
-//			float md_dx = cos( md_ang );
-//			float md_dy = sin( md_ang );
-
-//			float md_plus_x = 0.0;
-//			float md_plus_y = 0.0;
-//			float md_minus_x = 0.0;
-//			float md_minus_y = 0.0;
-
-//			if( !detect_white_border( md_x, md_y, &md_plus_x, &md_plus_y, md_dx, md_dy ) )
-//				if( !detect_white_border( md_x, md_y, &md_minus_x, &md_minus_y, md_dx * (-1), md_dy * (-1) ) )
-//					md_detected++;
-
-//			if( md_detected )
-//			{
-//				glBegin( GL_LINES );
-//				glColor3f(0, 1, 0);
-//				glVertex3f( md_x + md_minus_x, md_y + md_minus_y, 0);
-//				glVertex3f( md_x + md_plus_x, md_y + md_plus_y, 0);
-//				glEnd();
-//			}
-//		}
-
-	}
-
-    //SDL_Surface *screen = SDL_GetVideoSurface();
-    //if (SDL_BlitSurface(sf, NULL, screen, NULL) == 0)
-    //    SDL_GL_UpdateRect(screen, 0, 0, 0, 0);
-    /* Тут все свое ризуем */
+	/* Отрисовка всей нашей остальной части */
+	process_rgb_frame( buffer_sdl, WIDTH, HEIGHT );
 
     SDL_GL_SwapBuffers();
 
-static int cnt=0;cnt++;if(!(cnt%200))printf( "cnt=%i\n", cnt );
+static int cnt=0;cnt++;if(!(cnt%10))printf( "cnt=%i\n", cnt );
     
 }
 
@@ -382,14 +228,6 @@ static void process_image(const void *p)
         for (x = 0; x < WIDTH; x += 2)
             YUV422_to_RGB(buffer_sdl + ((HEIGHT-y-1) * WIDTH + x) * 3,
                           buffer_yuv + (y * WIDTH + x) * 2);
-
-	/* Найти на катринке наши обьекты */
-	
-	/* Вот тут мы можем добавить в картинку свои рисунки */
-	//SDL_SetRenderDrawColor( data_rd, 255/* r */, 0/* g */, 0/* b */, 255/* a */);
-	//SDL_RenderDrawLine( data_rd, 1/*x1*/, 1/*y1*/, 100/*x2*/, 100/*y2*/);
-
-
 
     render(data_sf);
 }
@@ -517,7 +355,7 @@ static void mainloop(void)
             FD_SET(fd, &fds);
 
             /* Timeout. */
-            tv.tv_sec = 2;
+            tv.tv_sec = 4;
             tv.tv_usec = 0;
 
             r = select(fd + 1, &fds, NULL, NULL, &tv);
@@ -1049,22 +887,29 @@ int main(int argc, char **argv)
     SDL_GL_SetAttribute(SDL_GL_RED_SIZE,            8);
     SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE,          8);
     SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE,           8);
-    SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE,          8);
-    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE,          16);
-    SDL_GL_SetAttribute(SDL_GL_BUFFER_SIZE,            32);
+    //SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE,          8);
+    //SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE,          16);
+    //SDL_GL_SetAttribute(SDL_GL_BUFFER_SIZE,            32);
     SDL_GL_SetAttribute(SDL_GL_ACCUM_RED_SIZE,        8);
     SDL_GL_SetAttribute(SDL_GL_ACCUM_GREEN_SIZE,    8);
     SDL_GL_SetAttribute(SDL_GL_ACCUM_BLUE_SIZE,        8);
-    SDL_GL_SetAttribute(SDL_GL_ACCUM_ALPHA_SIZE,    8);
-    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS,  1);
-    SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES,  2);
+    //SDL_GL_SetAttribute(SDL_GL_ACCUM_ALPHA_SIZE,    8);
+    //SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS,  1);
+    //SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES,  2);
+	SDL_GL_SetAttribute( SDL_GL_DOUBLEBUFFER, 1 );
 
 
     SDL_WM_SetCaption("SDL Video viewer", NULL);
 
     buffer_sdl = (uint8_t*)malloc(WIDTH*HEIGHT*3);
 
-    SDL_SetVideoMode(WIDTH, HEIGHT, 24, SDL_HWSURFACE | SDL_GL_DOUBLEBUFFER | SDL_OPENGL);
+    SDL_Surface * sf = SDL_SetVideoMode(WIDTH, HEIGHT, 24, /*SDL_HWSURFACE |*/ SDL_OPENGL);
+
+	if( !sf )
+	{
+		fprintf( stderr, "SDL_SetVideoMode return NULL\n" );
+		return -1;
+	}
 
 	glClearColor(0, 0, 0, 0);
 	glViewport(0, 0, WIDTH, HEIGHT);
