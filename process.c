@@ -168,8 +168,8 @@ void process_rgb_frame( uint8_t *img, int img_width, int img_height )
 
 
 	int i;
-	int x = img_width / 2;
-	int y = img_height / 2;
+	static int x = 300;//img_width / 2;
+	static int y = 300;//img_height / 2;
 	for( i = 0; i < 100; i++ )
 	{
 		one_X( &frame, &x, &y, (float)( rand() % 1000 ) * 2 * M_PI / 1000.0 );
