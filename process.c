@@ -90,13 +90,13 @@ static int one_X( img_t * img, int * px, int * py, float ang )
 	float st_y = sin( ang );
 
 	/* Нарисуем оси */
-        glBegin( GL_LINES );
-        glColor3f( 0.3, 0.3, 0.3 );
-        glVertex3f( cx - ( int )( RAY_LEN * st_x ), cy + ( int )( RAY_LEN * st_y ), 0 );
-        glVertex3f( cx + ( int )( RAY_LEN * st_x ), cy - ( int )( RAY_LEN * st_y ), 0 );
-        glVertex3f( cx - ( int )( RAY_LEN * st_y ), cy - ( int )( RAY_LEN * st_x ), 0 );
-        glVertex3f( cx + ( int )( RAY_LEN * st_y ), cy + ( int )( RAY_LEN * st_x ), 0 );
-        glEnd();
+        //glBegin( GL_LINES );
+        //glColor3f( 0.3, 0.3, 0.3 );
+        //glVertex3f( cx - ( int )( RAY_LEN * st_x ), cy + ( int )( RAY_LEN * st_y ), 0 );
+        //glVertex3f( cx + ( int )( RAY_LEN * st_x ), cy - ( int )( RAY_LEN * st_y ), 0 );
+        //glVertex3f( cx - ( int )( RAY_LEN * st_y ), cy - ( int )( RAY_LEN * st_x ), 0 );
+        //glVertex3f( cx + ( int )( RAY_LEN * st_y ), cy + ( int )( RAY_LEN * st_x ), 0 );
+        //glEnd();
 
 
 	int i;
@@ -168,11 +168,27 @@ void process_rgb_frame( uint8_t *img, int img_width, int img_height )
 
 
 	int i;
-	static int x = 300;//img_width / 2;
-	static int y = 300;//img_height / 2;
-	for( i = 0; i < 100; i++ )
+	for( i = 0; i < 1000; i++ )
 	{
-		one_X( &frame, &x, &y, (float)( rand() % 1000 ) * 2 * M_PI / 1000.0 );
+		int x = img_width * ( rand() % 2000 ) / 2000;
+		int y = img_height * ( rand() % 2000 ) / 2000;
+
+		int ii;
+		for( ii = 0; ii < 300; ii++ )
+		{
+			if( !one_X( &frame, &x, &y, (float)( rand() % 1000 ) * 2 * M_PI / 1000.0 ) ) break;
+		}
+
+		if( ii > 100 )
+		{
+        		glBegin( GL_LINE_LOOP );
+		        glColor3f( 1, 1, 1 );
+		        glVertex3f( x - 10, y - 10, 0 );
+		        glVertex3f( x - 10, y + 10, 0 );
+		        glVertex3f( x + 10, y + 10, 0 );
+		        glVertex3f( x + 10, y - 10, 0 );
+		        glEnd();
+		}
 	}
 }
 
