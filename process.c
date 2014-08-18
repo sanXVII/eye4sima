@@ -159,6 +159,14 @@ static int one_X( img_t * img, int * px, int * py, float ang )
 	return 0;
 }
 
+
+#define X_CYCLE_CNT 100
+int X_cycle( img_t * frame ) // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+{
+}
+
+
+
 void process_rgb_frame( uint8_t *img, int img_width, int img_height )
 {
 	img_t frame;
@@ -174,12 +182,14 @@ void process_rgb_frame( uint8_t *img, int img_width, int img_height )
 		int y = img_height * ( rand() % 2000 ) / 2000;
 
 		int ii;
-		for( ii = 0; ii < 300; ii++ )
+		for( ii = 0; ii < X_CYCLE_CNT; ii++ )
 		{
 			if( !one_X( &frame, &x, &y, (float)( rand() % 1000 ) * 2 * M_PI / 1000.0 ) ) break;
+
+			// запомним 4 точки
 		}
 
-		if( ii > 100 )
+		if( ii > ( X_CYCLE_CNT / 2 ) )
 		{
         		glBegin( GL_LINE_LOOP );
 		        glColor3f( 1, 1, 1 );
