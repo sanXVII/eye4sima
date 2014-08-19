@@ -161,8 +161,38 @@ static int one_X( img_t * img, int * px, int * py, float ang )
 
 
 #define X_CYCLE_CNT 100
-int X_cycle( img_t * frame ) // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+typedef struct maybe_figure
 {
+	int x;
+	int y;
+	int type; /* 0-unknown. 1-ellipse. 2-parallelogram */
+
+	/* Temporal dataset */
+	int point_Xs[ X_CYCLE_CNT * 4 ];
+	int point_Ys[ X_CYCLE_CNT * 4 ];
+	int point_cnt = 0;
+
+} maybe_figure;
+
+int X_cycle( img_t * frame, maybe_figure * fig )
+{
+	/* Сбросим точки края старой фигурки .. будем искать новую */
+	fig->point_cnt = 0;
+
+	int ii;
+	for( ii = 0; ii < X_CYCLE_CNT; ii++ )
+	{
+		if( !one_X( &frame, fig, (float)( rand() % 1000 ) * 2 * M_PI / 1000.0 ) ) 
+			break;
+	}
+
+	if( ii < ( X_CYCLE_CNT / 2 ) )
+		return 0; /* A figure is not detected. */
+
+	
+
+
+	return 1;
 }
 
 
@@ -178,18 +208,12 @@ void process_rgb_frame( uint8_t *img, int img_width, int img_height )
 	int i;
 	for( i = 0; i < 1000; i++ )
 	{
-		int x = img_width * ( rand() % 2000 ) / 2000;
-		int y = img_height * ( rand() % 2000 ) / 2000;
+		maybe_figure fig;
+		fig.x = img_width * ( rand() % 2000 ) / 2000;
+		fig.y = img_height * ( rand() % 2000 ) / 2000;
+		fig.type = 0/* unknown figure */;
 
-		int ii;
-		for( ii = 0; ii < X_CYCLE_CNT; ii++ )
-		{
-			if( !one_X( &frame, &x, &y, (float)( rand() % 1000 ) * 2 * M_PI / 1000.0 ) ) break;
-
-			// запомним 4 точки
-		}
-
-		if( ii > ( X_CYCLE_CNT / 2 ) )
+		if( X_cycle( &frame, &fig ) )
 		{
         		glBegin( GL_LINE_LOOP );
 		        glColor3f( 1, 1, 1 );
