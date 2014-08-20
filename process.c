@@ -36,8 +36,8 @@ typedef struct border_find_t
 
 static int mv_border( img_t * img, border_find_t * bf, int x, int y, int way )
 {
-	if( ( x >= img->width ) || ( x < 0 ) ) return -1;
-	if( ( y >= img->height ) || ( y < 0 ) ) return -1;
+	if( ( x >= img->width ) || ( x < 0 ) ) return 0;
+	if( ( y >= img->height ) || ( y < 0 ) ) return 0;
 
 	uint8_t * c_pnt = img->buf + 3 * ( ( img->height - y ) * img->width + x );
 	int dr = ( *( bf->start_pnt ) - *c_pnt );
@@ -72,11 +72,29 @@ static int mv_border( img_t * img, border_find_t * bf, int x, int y, int way )
 
 
 #define RAY_LEN 100
-
-static int one_X( img_t * img, int * px, int * py, float ang )
+#define X_CYCLE_CNT 90
+typedef struct maybe_figure
 {
-	int cx = *px;
-	int cy = *py;
+	int enter_x;
+	int enter_y;
+
+	float center_x;
+	float center_y;
+	int type; /* 0-unknown. 1-ellipse. 2-parallelogram */
+
+	/* Temporal dataset */
+	int point_Xs[ X_CYCLE_CNT * 4 ];
+	int point_Ys[ X_CYCLE_CNT * 4 ];
+	int point_cnt;
+
+} maybe_figure;
+
+
+
+static int one_X( img_t * img, maybe_figure * fig, float ang )
+{
+	int cx = fig->enter_x;
+	int cy = fig->enter_y;
 
 	border_find_t bf_data;
 	bf_data.start_pnt = img->buf + 3 * ( ( img->height - cy ) * img->width + cx );
@@ -102,6 +120,8 @@ static int one_X( img_t * img, int * px, int * py, float ang )
 	int i;
 	int ix;
 	int iy;
+
+	/* Центр одного последнего крестика */
 	int ret_x = 0;
 	int ret_y = 0;
 
@@ -113,8 +133,14 @@ static int one_X( img_t * img, int * px, int * py, float ang )
 
 		if( mv_border( img, &bf_data, ix, iy, 0x01/* право */ ) ) break;
 	}
+	if( i == RAY_LEN ) return 0; /* Abort */
+
 	ret_x += ix;
 	ret_y += iy;
+
+	fig->point_Xs[ fig->point_cnt ] = ix;
+	fig->point_Ys[ fig->point_cnt ] = iy;
+	fig->point_cnt++;
 
 	/* слева */
 	for( i = 1; i < RAY_LEN; i++ )
@@ -124,8 +150,14 @@ static int one_X( img_t * img, int * px, int * py, float ang )
 
 		if( mv_border( img, &bf_data, ix, iy, 0x02/* лево */ ) ) break;
 	}
+	if( i == RAY_LEN ) return 0; /* Abort */
+
 	ret_x += ix;
 	ret_y += iy;
+
+	fig->point_Xs[ fig->point_cnt ] = ix;
+	fig->point_Ys[ fig->point_cnt ] = iy;
+	fig->point_cnt++;
 
 	/* сверху */
 	for( i = 1; i < RAY_LEN; i++ )
@@ -135,9 +167,14 @@ static int one_X( img_t * img, int * px, int * py, float ang )
 
 		if( mv_border( img, &bf_data, ix, iy, 0x04/* вверх */ ) ) break;
 	}
+	if( i == RAY_LEN ) return 0; /* Abort */
+
 	ret_x += ix;
 	ret_y += iy;
 
+	fig->point_Xs[ fig->point_cnt ] = ix;
+	fig->point_Ys[ fig->point_cnt ] = iy;
+	fig->point_cnt++;
 
 	/* снизу */
 	for( i = 1; i < RAY_LEN; i++ )
@@ -147,32 +184,25 @@ static int one_X( img_t * img, int * px, int * py, float ang )
 
 		if( mv_border( img, &bf_data, ix, iy, 0x08/* вниз */ ) ) break;
 	}
+	if( i == RAY_LEN ) return 0; /* Abort */
+
 	ret_x += ix;
 	ret_y += iy;
 
+	fig->point_Xs[ fig->point_cnt ] = ix;
+	fig->point_Ys[ fig->point_cnt ] = iy;
+	fig->point_cnt++;
+
 	if( bf_data.result == 0x0f/* все границы */ )
 	{
-		*px = ret_x / 4;
-		*py = ret_y / 4;
+		fig->enter_x = ret_x / 4;
+		fig->enter_y = ret_y / 4;
 		return 1; 
 	}
 	return 0;
 }
 
 
-#define X_CYCLE_CNT 100
-typedef struct maybe_figure
-{
-	int x;
-	int y;
-	int type; /* 0-unknown. 1-ellipse. 2-parallelogram */
-
-	/* Temporal dataset */
-	int point_Xs[ X_CYCLE_CNT * 4 ];
-	int point_Ys[ X_CYCLE_CNT * 4 ];
-	int point_cnt = 0;
-
-} maybe_figure;
 
 int X_cycle( img_t * frame, maybe_figure * fig )
 {
@@ -182,15 +212,24 @@ int X_cycle( img_t * frame, maybe_figure * fig )
 	int ii;
 	for( ii = 0; ii < X_CYCLE_CNT; ii++ )
 	{
-		if( !one_X( &frame, fig, (float)( rand() % 1000 ) * 2 * M_PI / 1000.0 ) ) 
+		if( !one_X( frame, fig, (float)( rand() % 1000 ) * 2 * M_PI / 1000.0 ) ) 
 			break;
 	}
 
-	if( ii < ( X_CYCLE_CNT / 2 ) )
+	if( ii < ( X_CYCLE_CNT / 3 ) )
 		return 0; /* A figure is not detected. */
 
-	
-
+	/* Найти центр */
+	int i;
+	fig->center_x = 0.0;
+	fig->center_y = 0.0;
+	for( i = 0; i < fig->point_cnt; i++ )
+	{
+		fig->center_x += fig->point_Xs[ i ];
+		fig->center_y += fig->point_Ys[ i ];
+	}
+	fig->center_x /= ( float )i;
+	fig->center_y /= ( float )i;
 
 	return 1;
 }
@@ -209,18 +248,18 @@ void process_rgb_frame( uint8_t *img, int img_width, int img_height )
 	for( i = 0; i < 1000; i++ )
 	{
 		maybe_figure fig;
-		fig.x = img_width * ( rand() % 2000 ) / 2000;
-		fig.y = img_height * ( rand() % 2000 ) / 2000;
+		fig.enter_x = img_width * ( rand() % 2000 ) / 2000;
+		fig.enter_y = img_height * ( rand() % 2000 ) / 2000;
 		fig.type = 0/* unknown figure */;
 
 		if( X_cycle( &frame, &fig ) )
 		{
         		glBegin( GL_LINE_LOOP );
 		        glColor3f( 1, 1, 1 );
-		        glVertex3f( x - 10, y - 10, 0 );
-		        glVertex3f( x - 10, y + 10, 0 );
-		        glVertex3f( x + 10, y + 10, 0 );
-		        glVertex3f( x + 10, y - 10, 0 );
+		        glVertex3f( fig.center_x - 10, fig.center_y - 10, 0 );
+		        glVertex3f( fig.center_x - 10, fig.center_y + 10, 0 );
+		        glVertex3f( fig.center_x + 10, fig.center_y + 10, 0 );
+		        glVertex3f( fig.center_x + 10, fig.center_y - 10, 0 );
 		        glEnd();
 		}
 	}
