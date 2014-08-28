@@ -66,6 +66,10 @@ typedef struct tuzer
 {
 	int x;
 	int y;
+
+	int dx;
+	int dy;
+
 	struct tuzer * next;
 } tuzer;
 
@@ -265,13 +269,17 @@ void process_rgb_frame( uint8_t *img, int img_width, int img_height )
 		tuz_cnt++;
 
 		maybe_figure fig;
-		fig.enter_x = ( tuz_cnt < STABLE_TUZERS ) ? c_tuz->x : rand() % img_width;
-		fig.enter_y = ( tuz_cnt < STABLE_TUZERS ) ? c_tuz->y : rand() % img_height;
+		int new_random_enter = ( tuz_cnt < STABLE_TUZERS ) ? 0 : 1;
+
+		fig.enter_x = new_random_enter ? rand() % img_width : ( c_tuz->x + c_tuz->dx );
+		fig.enter_y = new_random_enter ? rand() % img_height : ( c_tuz->y + c_tuz->dy );
 		fig.type = 0/* unknown figure */;
 
 		if( X_cycle( &frame, &fig ) )
 		{
 			/* Фигура есть. Координаты запомним. */
+			c_tuz->dx = new_random_enter ? 0 : fig.center_x - c_tuz->x;
+			c_tuz->dy =  new_random_enter ? 0 : fig.center_y - c_tuz->y;
 			c_tuz->x = fig.center_x;
 			c_tuz->y = fig.center_y;
 
@@ -292,6 +300,13 @@ void process_rgb_frame( uint8_t *img, int img_width, int img_height )
 		        glVertex3f( fig.center_x + 10, fig.center_y + 10, 0 );
 		        glVertex3f( fig.center_x + 10, fig.center_y - 10, 0 );
 		        glEnd();
+
+			glBegin( GL_LINES );
+			glColor3f( 0.2, 0.2, 1.0 );
+			glVertex3f( fig.center_x, fig.center_y, 0 );
+			glVertex3f( fig.center_x - c_tuz->dx, fig.center_y - c_tuz->dy, 0 );
+			glEnd();
+
 
 			
 			/* Поднимем тузера. */
