@@ -58,6 +58,45 @@ typedef struct maybe_figure
 } maybe_figure;
 
 
+
+
+/* Для отслеживания кругов и квадратов */
+
+typedef struct tuzer
+{
+	int x;
+	int y;
+	struct tuzer * next;
+} tuzer;
+
+#define TUZER_CNT 600
+#define STABLE_TUZERS 400
+static tuzer tuzers[ TUZER_CNT ];
+static tuzer * first_tuzer = 0l;
+
+static void reset_tuzers( int width, int height )
+{
+	first_tuzer = 0l;
+
+	int i;
+	for( i = 0; i < TUZER_CNT; i++ )
+	{
+		tuzer * c_tuz = tuzers + i;
+		memset( c_tuz, 0, sizeof( tuzer ) );
+		
+		c_tuz->next = first_tuzer;
+		first_tuzer = c_tuz;
+
+		c_tuz->x = rand() % width;
+		c_tuz->y = rand() % height;
+	}
+}
+
+
+
+
+
+
 static int mv_border( img_t * img, border_find_t * bf, maybe_figure * fig, float st_x, float st_y )
 {
 	int i;
@@ -89,13 +128,13 @@ static int mv_border( img_t * img, border_find_t * bf, maybe_figure * fig, float
 				fig->point_Ys[ fig->point_cnt ] = bf->y;
 				fig->point_cnt++;
 
-				glBegin( GL_LINES );
-				glColor3f( 1, 0.4, 0.4 );
-				glVertex3f( bf->x - 2, bf->y - 2, 0);
-				glVertex3f( bf->x + 2, bf->y + 2, 0);
-				glVertex3f( bf->x - 2, bf->y + 2, 0);
-				glVertex3f( bf->x + 2, bf->y - 2, 0);
-				glEnd();
+				//glBegin( GL_LINES );
+				//glColor3f( 1, 0.4, 0.4 );
+				//glVertex3f( bf->x - 2, bf->y - 2, 0);
+				//glVertex3f( bf->x + 2, bf->y + 2, 0);
+				//glVertex3f( bf->x - 2, bf->y + 2, 0);
+				//glVertex3f( bf->x + 2, bf->y - 2, 0);
+				//glEnd();
 
 				return 1; /* есть граница */
 			}
@@ -206,30 +245,68 @@ int X_cycle( img_t * frame, maybe_figure * fig )
 
 void process_rgb_frame( uint8_t *img, int img_width, int img_height )
 {
+	if( !first_tuzer )
+		reset_tuzers( img_width, img_height );
+		
+
 	img_t frame;
 	frame.buf = img;
 	frame.width = img_width;
 	frame.height = img_height;
 
 
-	int i;
-	for( i = 0; i < 1000; i++ )
+
+	/* Пробегаемся по всем вероятным точкам в поисках кругов и квадратов */
+	int tuz_cnt = 0;
+	tuzer * p_tuz = 0l;
+	tuzer * c_tuz = first_tuzer;
+	while( c_tuz )
 	{
+		tuz_cnt++;
+
 		maybe_figure fig;
-		fig.enter_x = img_width * ( rand() % 2000 ) / 2000;
-		fig.enter_y = img_height * ( rand() % 2000 ) / 2000;
+		fig.enter_x = ( tuz_cnt < STABLE_TUZERS ) ? c_tuz->x : rand() % img_width;
+		fig.enter_y = ( tuz_cnt < STABLE_TUZERS ) ? c_tuz->y : rand() % img_height;
 		fig.type = 0/* unknown figure */;
 
 		if( X_cycle( &frame, &fig ) )
 		{
+			/* Фигура есть. Координаты запомним. */
+			c_tuz->x = fig.center_x;
+			c_tuz->y = fig.center_y;
+
+			
+
         		glBegin( GL_LINE_LOOP );
-		        glColor3f( 1, 1, 1 );
+		        if( tuz_cnt < STABLE_TUZERS )
+			{
+				glColor3f( 0.5, 1, 0.5 );
+			}
+			else
+			{
+				glColor3f( 1, 0.2, 0.2 );
+			}
+
 		        glVertex3f( fig.center_x - 10, fig.center_y - 10, 0 );
 		        glVertex3f( fig.center_x - 10, fig.center_y + 10, 0 );
 		        glVertex3f( fig.center_x + 10, fig.center_y + 10, 0 );
 		        glVertex3f( fig.center_x + 10, fig.center_y - 10, 0 );
 		        glEnd();
+
+			
+			/* Поднимем тузера. */
+			if( p_tuz )
+			{
+				p_tuz->next = c_tuz->next;
+				c_tuz->next = first_tuzer;
+				first_tuzer = c_tuz;
+
+				c_tuz = p_tuz->next;
+				continue;
+			}
 		}
+		p_tuz = c_tuz;
+		c_tuz = c_tuz->next;
 	}
 }
 
