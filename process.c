@@ -55,6 +55,9 @@ typedef struct maybe_figure
 	int point_Ys[ X_CYCLE_CNT * 4 ];
 	int point_cnt;
 
+	int near_point_id;
+	int far_point_id;
+
 } maybe_figure;
 
 
@@ -242,6 +245,33 @@ int X_cycle( img_t * frame, maybe_figure * fig )
 	fig->center_x /= ( float )i;
 	fig->center_y /= ( float )i;
 
+	/* Определить что это за фигура */
+	float near_point = 0.0;
+	float far_point = 0.0;
+	float last_s = 0.0;
+	for( i = 0; i < fig->point_cnt; i++ )
+	{
+		fig->point_Xs[ i ] -= fig->center_x;
+		fig->point_Ys[ i ] -= fig->center_y;
+		
+		last_s = fig->point_Xs[ i ] * fig->point_Xs[ i ]
+			+ fig->point_Ys[ i ] * fig->point_Ys[ i ];
+
+		if( ( last_s < near_point ) || ( !i ) )
+		{
+			near_point = last_s;
+			fig->near_point_id = i;
+		}
+
+		if( far_point < last_s )
+		{
+			far_point = last_s;
+			fig->far_point_id = i;
+		}
+	}
+
+	/* Носом фигуры считаем fig->far_point_id ... Далее определяем тип фигурки */
+	
 	return 1;
 }
 
@@ -275,6 +305,8 @@ void process_rgb_frame( uint8_t *img, int img_width, int img_height )
 		fig.enter_y = new_random_enter ? rand() % img_height : ( c_tuz->y + c_tuz->dy );
 		fig.type = 0/* unknown figure */;
 
+		/* <<<<<<<<<<<<<<<<  Но сначала по кате убедимся что точка fig.enter_x fig.enter_y свободна */
+
 		if( X_cycle( &frame, &fig ) )
 		{
 			/* Фигура есть. Координаты запомним. */
@@ -282,6 +314,8 @@ void process_rgb_frame( uint8_t *img, int img_width, int img_height )
 			c_tuz->dy =  new_random_enter ? 0 : fig.center_y - c_tuz->y;
 			c_tuz->x = fig.center_x;
 			c_tuz->y = fig.center_y;
+
+			/* <<<<<<<<<<<<<<<<<<<<<  Займем на карте площадку с радиусом fig.near_point_id */
 
 			
 
@@ -305,8 +339,12 @@ void process_rgb_frame( uint8_t *img, int img_width, int img_height )
 			glColor3f( 0.2, 0.2, 1.0 );
 			glVertex3f( fig.center_x, fig.center_y, 0 );
 			glVertex3f( fig.center_x - c_tuz->dx, fig.center_y - c_tuz->dy, 0 );
-			glEnd();
 
+			glColor3f( 1.0, 1.0, 0.3 );
+			glVertex3f( fig.center_x, fig.center_y, 0 );
+			glVertex3f( fig.center_x + fig.point_Xs[ fig.far_point_id ], 
+				fig.center_y + fig.point_Ys[ fig.far_point_id ], 0 ); 
+			glEnd();
 
 			
 			/* Поднимем тузера. */
