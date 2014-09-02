@@ -121,7 +121,7 @@ static void render(SDL_Surface * sf)
 
 
 	/* Отрисовка всей нашей остальной части */
-	process_rgb_frame( buffer_sdl, WIDTH, HEIGHT );
+	process_rgb_frame( buffer_sdl );
 
     SDL_GL_SwapBuffers();
 
@@ -931,6 +931,10 @@ int main(int argc, char **argv)
 
 
     SDL_SetEventFilter(sdl_filter);
+
+	/* Настроим процессор */
+	init_img_processor( WIDTH, HEIGHT );
+
 
     start_capturing();
     mainloop();

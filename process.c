@@ -81,10 +81,22 @@ typedef struct tuzer
 static tuzer tuzers[ TUZER_CNT ];
 static tuzer * first_tuzer = 0l;
 
-static void reset_tuzers( int width, int height )
-{
-	first_tuzer = 0l;
 
+/* Подготовиться к работе */
+static int img_height;
+static int img_width;
+
+
+#define GRID_WX 50
+#define GRID_WY 50
+
+
+void init_img_processor( int width, int height )
+{
+	img_height = height;
+	img_width = width;
+
+	/* Готовим тузеров */
 	int i;
 	for( i = 0; i < TUZER_CNT; i++ )
 	{
@@ -97,9 +109,8 @@ static void reset_tuzers( int width, int height )
 		c_tuz->x = rand() % width;
 		c_tuz->y = rand() % height;
 	}
+	
 }
-
-
 
 
 
@@ -277,11 +288,8 @@ int X_cycle( img_t * frame, maybe_figure * fig )
 
 
 
-void process_rgb_frame( uint8_t *img, int img_width, int img_height )
+void process_rgb_frame( uint8_t *img )
 {
-	if( !first_tuzer )
-		reset_tuzers( img_width, img_height );
-		
 
 	img_t frame;
 	frame.buf = img;
@@ -316,6 +324,7 @@ void process_rgb_frame( uint8_t *img, int img_width, int img_height )
 			c_tuz->y = fig.center_y;
 
 			/* <<<<<<<<<<<<<<<<<<<<<  Займем на карте площадку с радиусом fig.near_point_id */
+			/* Подсчитаем ячейку на карте под это точку */
 
 			
 
