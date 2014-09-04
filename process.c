@@ -79,8 +79,8 @@ typedef struct tuzer
 	float radius_square;
 } tuzer;
 
-#define TUZER_CNT 6000
-#define STABLE_TUZERS 4000
+#define TUZER_CNT 1200
+#define STABLE_TUZERS 800
 static tuzer tuzers[ TUZER_CNT ];
 static tuzer * first_tuzer = 0l;
 
@@ -190,7 +190,7 @@ static int one_X( img_t * img, maybe_figure * fig, float ang )
 
 	bf_data.sum_dv = 0;
 	bf_data.cnt_dv = 0;
-	bf_data.wall = 22; /* установлено шаманами */
+	bf_data.wall = 18; /* 22 установлено шаманами */
 	bf_data.min_dv = 14; /* определено шаманами */
 	bf_data.start_x = fig->enter_x;
 	bf_data.start_y = fig->enter_y;
@@ -244,7 +244,7 @@ int X_cycle( img_t * frame, maybe_figure * fig )
 	{
 		if( !one_X( frame, fig, (float)( rand() % 1000 ) * 2 * M_PI / 1000.0 ) )
 		{
-			if( ( fail_cnt++ ) > ( X_CYCLE_CNT / 50 ) )
+			if( ( fail_cnt++ ) > ( X_CYCLE_CNT / 33 ) )
 			{
 				/* Слишком много ошибок подряд */
 				return 0; /* A figure is not detected. */
@@ -353,6 +353,23 @@ void process_rgb_frame( uint8_t *img )
 
 		if( X_cycle( &frame, &fig ) )
 		{
+			float near_square = fig.point_Xs[ fig.near_point_id ]
+				* fig.point_Xs[ fig.near_point_id ]
+				+ fig.point_Ys[ fig.near_point_id ]
+				* fig.point_Ys[ fig.near_point_id ];
+
+			float far_square = fig.point_Xs[ fig.far_point_id ]
+				* fig.point_Xs[ fig.far_point_id ]
+				+ fig.point_Ys[ fig.far_point_id ]
+				* fig.point_Ys[ fig.far_point_id ];
+
+
+			if( far_square < 4.0 )
+				goto next_tuzer; /* Подозрительно мелкий */
+
+			if( near_square * 49.0 < far_square )
+				goto next_tuzer; /* Подозрительно сплющенный */
+
 			/* Перепроверим с новым центром */
 			if( !check_4free( fig.center_x, fig.center_y ) )
 				goto next_tuzer; /* Значит за пределами экрана */
@@ -363,10 +380,7 @@ void process_rgb_frame( uint8_t *img )
 			c_tuz->x = fig.center_x;
 			c_tuz->y = fig.center_y;
 
-			c_tuz->radius_square = ( c_tuz->x - fig.point_Xs[ fig.far_point_id ] )
-				* ( c_tuz->x - fig.point_Xs[ fig.far_point_id ] )
-				+ ( c_tuz->y - fig.point_Ys[ fig.far_point_id ] )
-				* ( c_tuz->y - fig.point_Ys[ fig.far_point_id ] );
+			c_tuz->radius_square = far_square;
 
 			//if( c_tuz->radius_square < 4.0 )
 			//	goto next_tuzer; /* Совсем шум */
