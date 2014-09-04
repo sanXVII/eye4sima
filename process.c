@@ -74,10 +74,13 @@ typedef struct tuzer
 	int dy;
 
 	struct tuzer * next;
+
+	struct tuzer * in_cell;
+	float radius_square;
 } tuzer;
 
-#define TUZER_CNT 600
-#define STABLE_TUZERS 400
+#define TUZER_CNT 6000
+#define STABLE_TUZERS 4000
 static tuzer tuzers[ TUZER_CNT ];
 static tuzer * first_tuzer = 0l;
 
@@ -87,9 +90,11 @@ static int img_height;
 static int img_width;
 
 
-#define GRID_WX 50
-#define GRID_WY 50
-
+#define GRID_WX 25
+#define GRID_WY 25
+static tuzer ** tuz_grid = 0l;
+static int tuz_grid_w = 0;
+static int tuz_grid_sz = 0;
 
 void init_img_processor( int width, int height )
 {
@@ -110,6 +115,13 @@ void init_img_processor( int width, int height )
 		c_tuz->y = rand() % height;
 	}
 	
+	/* Сеть для поиска близких тузеров */
+	tuz_grid_w = width / GRID_WX + 1;
+	tuz_grid_sz = tuz_grid_w * ( height / GRID_WY + 1 ) * sizeof( tuzer* );
+	printf( "debug: Размер tuz_grid: %i\n", tuz_grid_sz );
+
+	tuz_grid = ( tuzer ** )malloc( tuz_grid_sz );
+	memset( tuz_grid, 0, tuz_grid_sz );
 }
 
 
@@ -287,6 +299,26 @@ int X_cycle( img_t * frame, maybe_figure * fig )
 }
 
 
+static int check_4free( int x, int y )
+{
+	int gid = ( x / GRID_WX ) + tuz_grid_w * ( y / GRID_WY );
+	if( ( gid < 0 ) || ( ( gid * sizeof( tuzer * ) ) >= tuz_grid_sz ) )
+		return 0; /* Плохая точка за пределами экрана */
+
+	tuzer * nr_tuz = tuz_grid[ gid ];
+	while( nr_tuz )
+	{
+		float cq = ( nr_tuz->x - x ) * ( nr_tuz->x - x )
+			+ ( nr_tuz->y - y ) * ( nr_tuz->y - y );
+
+		if( cq < nr_tuz->radius_square )
+			return 0; /* Занято */
+
+		nr_tuz = nr_tuz->in_cell;
+	}
+	
+	return 1; /* Свободно */
+}
 
 void process_rgb_frame( uint8_t *img )
 {
@@ -296,6 +328,8 @@ void process_rgb_frame( uint8_t *img )
 	frame.width = img_width;
 	frame.height = img_height;
 
+	/* Очистим сеть поиска тузеров */
+	memset( tuz_grid, 0, tuz_grid_sz );
 
 
 	/* Пробегаемся по всем вероятным точкам в поисках кругов и квадратов */
@@ -312,19 +346,33 @@ void process_rgb_frame( uint8_t *img )
 		fig.enter_x = new_random_enter ? rand() % img_width : ( c_tuz->x + c_tuz->dx );
 		fig.enter_y = new_random_enter ? rand() % img_height : ( c_tuz->y + c_tuz->dy );
 		fig.type = 0/* unknown figure */;
-
-		/* <<<<<<<<<<<<<<<<  Но сначала по кате убедимся что точка fig.enter_x fig.enter_y свободна */
+		
+		/* Свободна ли точка? */
+		if( !check_4free( fig.enter_x, fig.enter_y ) )
+			goto next_tuzer; /* Значит за пределами экрана */
 
 		if( X_cycle( &frame, &fig ) )
 		{
+			/* Перепроверим с новым центром */
+			if( !check_4free( fig.center_x, fig.center_y ) )
+				goto next_tuzer; /* Значит за пределами экрана */
+
 			/* Фигура есть. Координаты запомним. */
 			c_tuz->dx = new_random_enter ? 0 : fig.center_x - c_tuz->x;
 			c_tuz->dy =  new_random_enter ? 0 : fig.center_y - c_tuz->y;
 			c_tuz->x = fig.center_x;
 			c_tuz->y = fig.center_y;
 
-			/* <<<<<<<<<<<<<<<<<<<<<  Займем на карте площадку с радиусом fig.near_point_id */
+			c_tuz->radius_square = ( c_tuz->x - fig.point_Xs[ fig.near_point_id ] )
+				* ( c_tuz->x - fig.point_Xs[ fig.near_point_id ] )
+				+ ( c_tuz->y - fig.point_Ys[ fig.near_point_id ] )
+				* ( c_tuz->y - fig.point_Ys[ fig.near_point_id ] );
+
 			/* Подсчитаем ячейку на карте под это точку */
+			int tgt_in_gid = ( c_tuz->x / GRID_WX ) + tuz_grid_w * ( c_tuz->y / GRID_WY );
+			assert( tgt_in_gid < ( tuz_grid_sz / sizeof( tuzer * ) ) );
+			c_tuz->in_cell = tuz_grid[ tgt_in_gid ];
+			tuz_grid[ tgt_in_gid ] = c_tuz;
 
 			
 
@@ -367,8 +415,32 @@ void process_rgb_frame( uint8_t *img )
 				continue;
 			}
 		}
+next_tuzer:
 		p_tuz = c_tuz;
 		c_tuz = c_tuz->next;
+	}
+
+	/* ----------- Распечатаем грид */
+	int ix,iy;
+	for( iy = 0; iy < img_height / GRID_WY; iy++ )
+	{
+		for( ix = 0; ix < img_width / GRID_WX; ix++ )
+		{
+			glBegin( GL_LINES );
+			glColor3f( 0.2, 1.0, 1.0 );
+
+			assert( iy * tuz_grid_w + ix < ( tuz_grid_sz / sizeof( tuzer * ) ) );
+
+			c_tuz = tuz_grid[ iy * tuz_grid_w + ix ];
+			while( c_tuz )
+			{
+				glVertex3f( c_tuz->x, c_tuz->y, 0 );
+				glVertex3f( ix * GRID_WX, iy * GRID_WY, 0 );
+
+				c_tuz = c_tuz->in_cell;
+			}
+			glEnd();
+		}
 	}
 }
 
