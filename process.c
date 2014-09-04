@@ -363,10 +363,13 @@ void process_rgb_frame( uint8_t *img )
 			c_tuz->x = fig.center_x;
 			c_tuz->y = fig.center_y;
 
-			c_tuz->radius_square = ( c_tuz->x - fig.point_Xs[ fig.near_point_id ] )
-				* ( c_tuz->x - fig.point_Xs[ fig.near_point_id ] )
-				+ ( c_tuz->y - fig.point_Ys[ fig.near_point_id ] )
-				* ( c_tuz->y - fig.point_Ys[ fig.near_point_id ] );
+			c_tuz->radius_square = ( c_tuz->x - fig.point_Xs[ fig.far_point_id ] )
+				* ( c_tuz->x - fig.point_Xs[ fig.far_point_id ] )
+				+ ( c_tuz->y - fig.point_Ys[ fig.far_point_id ] )
+				* ( c_tuz->y - fig.point_Ys[ fig.far_point_id ] );
+
+			//if( c_tuz->radius_square < 4.0 )
+			//	goto next_tuzer; /* Совсем шум */
 
 			/* Подсчитаем ячейку на карте под это точку */
 			int tgt_in_gid = ( c_tuz->x / GRID_WX ) + tuz_grid_w * ( c_tuz->y / GRID_WY );
