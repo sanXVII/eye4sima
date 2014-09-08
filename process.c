@@ -295,6 +295,22 @@ int X_cycle( img_t * frame, maybe_figure * fig )
 
 	/* Носом фигуры считаем fig->far_point_id ... Далее определяем тип фигурки */
 	
+	/* Определяем угол для носа */
+
+	float rad = fig->point_Xs[ fig->far_point_id ] * fig->point_Xs[ fig->far_point_id ]; 
+	rad += fig->point_Ys[ fig->far_point_id ] * fig->point_Ys[ fig->far_point_id ];
+	rad = sqrt( mod );
+	if( rad < 1.0 )
+		return 0; /* Слишком мелкое пятно */
+
+	float angle = asin( fig->point_Ys[ fig->far_point_id ] / rad ); /* от -Pi/2 до +Pi/2 */
+	angle = ( fig->point_Xs[ fig->far_point_id ] < 0.0 ) ? ( M_PI/2 - angle ) : angle;
+
+	float press = 0.5; /* Степень ужатия, который нужно определить по ходу сопоставлений. */
+	for( i = 0; i < 5/* Число итераций */; i++ )
+	{
+	}
+
 	return 1;
 }
 
