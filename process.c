@@ -306,9 +306,28 @@ int X_cycle( img_t * frame, maybe_figure * fig )
 	float angle = asin( fig->point_Ys[ fig->far_point_id ] / rad ); /* от -Pi/2 до +Pi/2 */
 	angle = ( fig->point_Xs[ fig->far_point_id ] < 0.0 ) ? ( M_PI/2 - angle ) : angle;
 
-	float press = 0.5; /* Степень ужатия, который нужно определить по ходу сопоставлений. */
+	float press = 0.5;
+	float step = 0.25;
+	float dist = maybe_square( fig, press, angle ); ///-----------<<<<<<<<<<<<<<<<<<<<<<<<<<<<<,
+
 	for( i = 0; i < 5/* Число итераций */; i++ )
 	{
+		float left_dist = maybe_square( fig, press - step, angle );
+		float right_dist = maybe_square( fig, press + step, angle );
+
+		if( left_dist < dist )
+		{
+			dist = left_dist;
+			press -= step;
+		}
+
+		if( right_dist < dist )
+		{
+			dist = right_dist;
+			press += step;
+		}
+
+		step /= 2.0;
 	}
 
 	return 1;
