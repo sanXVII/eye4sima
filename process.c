@@ -58,6 +58,13 @@ typedef struct maybe_figure
 	int near_point_id;
 	int far_point_id;
 
+	float angle; /* Угол фигуры */
+	float radius; /* Самая дальняя точка фигуры */
+
+	/* Тип фигуры */
+	float square_dist;
+	float square_press;
+
 } maybe_figure;
 
 
@@ -231,8 +238,58 @@ static int one_X( img_t * img, maybe_figure * fig, float ang )
 }
 
 
+static float maybe_square( maybe_figure * fig, float press )
+{
+	float ret_s = 0.0;
+	float angle = fig->angle * (-1.0);
 
-int X_cycle( img_t * frame, maybe_figure * fig )
+	int i;
+	for( i = 0; i < fig->point_cnt; i++ )
+	{
+		/* Для начала повернем на angle радианов */
+		float sx = fig->point_Xs[ i ] * cos( angle )
+			- fig->point_Ys[ i ] * sin( angle );
+		float sy = fig->point_Xs[ i ] * sin( angle )
+			+ fig->point_Ys[ i ] * cos( angle );
+
+		/* Затем разожмем */
+		sy /= press;
+
+		/* Теперь найдем найдем нужную точку на идеальной фигуре */
+		float a = 1.0;
+		float b = fig->radius;
+
+		if( ( sx > 0 ) && ( sy > 0 ) )
+		{
+			a *= -1.0;
+		}
+		else if( ( sx < 0 ) && ( sy < 0 ) )
+		{
+			a *= -1.0;
+			b *= -1.0;
+		}
+		else if( ( sx > 0 ) && ( sy < 0 ) )
+		{
+			b *= -1.0;
+		}
+
+		float fx = 0.0;
+		float fy = b;
+
+		if( abs( sx ) > 0.00001 /* проверка на 0 */ )
+		{
+			fx = ( b * (-1) / ( a - sy / sx ) );
+			fy = a * fx + b;
+		}
+
+		ret_s += ( fx - sx ) * ( fx - sx ) + ( fy - sy ) * ( fy - sy );
+	}
+
+	ret_s /= fig->point_cnt;
+	return ret_s;
+}
+
+static int X_cycle( img_t * frame, maybe_figure * fig )
 {
 	int fail_cnt = 0;
 
@@ -297,23 +354,23 @@ int X_cycle( img_t * frame, maybe_figure * fig )
 	
 	/* Определяем угол для носа */
 
-	float rad = fig->point_Xs[ fig->far_point_id ] * fig->point_Xs[ fig->far_point_id ]; 
-	rad += fig->point_Ys[ fig->far_point_id ] * fig->point_Ys[ fig->far_point_id ];
-	rad = sqrt( mod );
-	if( rad < 1.0 )
+	fig->radius = fig->point_Xs[ fig->far_point_id ] * fig->point_Xs[ fig->far_point_id ]; 
+	fig->radius += fig->point_Ys[ fig->far_point_id ] * fig->point_Ys[ fig->far_point_id ];
+	fig->radius = sqrt( fig->radius );
+	if( fig->radius < 1.0 )
 		return 0; /* Слишком мелкое пятно */
 
-	float angle = asin( fig->point_Ys[ fig->far_point_id ] / rad ); /* от -Pi/2 до +Pi/2 */
-	angle = ( fig->point_Xs[ fig->far_point_id ] < 0.0 ) ? ( M_PI/2 - angle ) : angle;
+	fig->angle = asin( fig->point_Ys[ fig->far_point_id ] / fig->radius ); /* от -Pi/2 до +Pi/2 */
+	fig->angle = ( fig->point_Xs[ fig->far_point_id ] < 0.0 ) ? ( M_PI/2 - fig->angle ) : fig->angle;
 
 	float press = 0.5;
 	float step = 0.25;
-	float dist = maybe_square( fig, press, angle ); ///-----------<<<<<<<<<<<<<<<<<<<<<<<<<<<<<,
+	float dist = maybe_square( fig, press );
 
-	for( i = 0; i < 5/* Число итераций */; i++ )
+	for( i = 0; i < 4/* Число итераций */; i++ )
 	{
-		float left_dist = maybe_square( fig, press - step, angle );
-		float right_dist = maybe_square( fig, press + step, angle );
+		float left_dist = maybe_square( fig, press - step );
+		float right_dist = maybe_square( fig, press + step );
 
 		if( left_dist < dist )
 		{
@@ -329,6 +386,9 @@ int X_cycle( img_t * frame, maybe_figure * fig )
 
 		step /= 2.0;
 	}
+
+	fig->square_dist = dist;
+	fig->square_press = press;
 
 	return 1;
 }
@@ -452,7 +512,24 @@ void process_rgb_frame( uint8_t *img )
 			glColor3f( 1.0, 1.0, 0.3 );
 			glVertex3f( fig.center_x, fig.center_y, 0 );
 			glVertex3f( fig.center_x + fig.point_Xs[ fig.far_point_id ], 
-				fig.center_y + fig.point_Ys[ fig.far_point_id ], 0 ); 
+				fig.center_y + fig.point_Ys[ fig.far_point_id ], 0 );
+
+			glEnd();
+
+			/* результаты распознавания */
+        		glBegin( GL_LINE_LOOP );
+			glColor3f( 1.0, 0.0, 0.0 );
+			glVertex3f( fig.radius * cos(fig.angle) + fig.center_x, 
+				fig.radius * sin( fig.angle ) + fig.center_y, 0.0 );
+
+			glVertex3f( fig.square_press * fig.radius * cos(fig.angle + M_PI/2 ) + fig.center_x, 
+				fig.square_press * fig.radius * sin( fig.angle + M_PI/2 ) + fig.center_y, 0.0 );
+
+			glVertex3f( fig.radius * cos(fig.angle + M_PI ) + fig.center_x, 
+				fig.radius * sin( fig.angle + M_PI ) + fig.center_y, 0.0 );
+
+			glVertex3f( fig.square_press * fig.radius * cos(fig.angle + M_PI * 1.5 ) + fig.center_x, 
+				fig.square_press * fig.radius * sin( fig.angle + M_PI * 1.5 ) + fig.center_y, 0.0 );
 			glEnd();
 
 			
