@@ -361,7 +361,7 @@ static int X_cycle( img_t * frame, maybe_figure * fig )
 		return 0; /* Слишком мелкое пятно */
 
 	fig->angle = asin( fig->point_Ys[ fig->far_point_id ] / fig->radius ); /* от -Pi/2 до +Pi/2 */
-	fig->angle = ( fig->point_Xs[ fig->far_point_id ] < 0.0 ) ? ( M_PI/2 - fig->angle ) : fig->angle;
+	fig->angle = ( fig->point_Xs[ fig->far_point_id ] < 0.0 ) ? ( M_PI - fig->angle ) : fig->angle;
 
 	float press = 0.5;
 	float step = 0.25;
