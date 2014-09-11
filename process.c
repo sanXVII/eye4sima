@@ -62,8 +62,8 @@ typedef struct maybe_figure
 	float radius; /* Самая дальняя точка фигуры */
 
 	/* Тип фигуры */
-	float square_dist;
-	float square_press;
+	int is_circle; /* 1:круг 0:квадрат */
+	float press;
 
 } maybe_figure;
 
@@ -140,8 +140,8 @@ static int mv_border( img_t * img, border_find_t * bf, maybe_figure * fig, float
 
 	for( i = 1; i < RAY_LEN; i++ )
 	{
-		bf->x = bf->start_x + ( int )( i * st_x ); //------------------
-		bf->y = bf->start_y - ( int )( i * st_y ); //------------------
+		bf->x = bf->start_x + ( int )( i * st_x ); 
+		bf->y = bf->start_y - ( int )( i * st_y ); 
 
 
 		if( ( bf->x >= img->width ) || ( bf->x < 0 ) ) return 0;
@@ -237,6 +237,31 @@ static int one_X( img_t * img, maybe_figure * fig, float ang )
 	return 1; 
 }
 
+
+static float maybe_sphere( maybe_figure * fig, float press )
+{
+	float ret_s = 0.0;
+	float angle = fig->angle * (-1.0);
+
+	int i;
+	for( i = 0; i < fig->point_cnt; i++ )
+	{
+		/* Для начала повернем на angle радианов */
+		float sx = fig->point_Xs[ i ] * cos( angle )
+			- fig->point_Ys[ i ] * sin( angle );
+		float sy = fig->point_Xs[ i ] * sin( angle )
+			+ fig->point_Ys[ i ] * cos( angle );
+
+		/* Затем разожмем */
+		sy /= press;
+
+		/* Теперь найдем длину получившегося луча */
+		float l = sqrt( sx * sx + sy * sy );
+		ret_s += ( fig->radius - l ) * ( fig->radius - l );
+	}
+	ret_s /= fig->point_cnt;
+	return ret_s;
+}
 
 static float maybe_square( maybe_figure * fig, float press )
 {
@@ -363,32 +388,59 @@ static int X_cycle( img_t * frame, maybe_figure * fig )
 	fig->angle = asin( fig->point_Ys[ fig->far_point_id ] / fig->radius ); /* от -Pi/2 до +Pi/2 */
 	fig->angle = ( fig->point_Xs[ fig->far_point_id ] < 0.0 ) ? ( M_PI - fig->angle ) : fig->angle;
 
-	float press = 0.5;
+
+	/* Проверка на квадрат */
+	float sq_press = 0.5;
 	float step = 0.25;
-	float dist = maybe_square( fig, press );
+	float sq_dist = maybe_square( fig, sq_press );
 
-	for( i = 0; i < 4/* Число итераций */; i++ )
+	for( i = 0; i < 6/* Число итераций */; i++ )
 	{
-		float left_dist = maybe_square( fig, press - step );
-		float right_dist = maybe_square( fig, press + step );
+		float left_dist = maybe_square( fig, sq_press - step );
+		float right_dist = maybe_square( fig, sq_press + step );
 
-		if( left_dist < dist )
+		if( left_dist < sq_dist )
 		{
-			dist = left_dist;
-			press -= step;
+			sq_dist = left_dist;
+			sq_press -= step;
 		}
 
-		if( right_dist < dist )
+		if( right_dist < sq_dist )
 		{
-			dist = right_dist;
-			press += step;
+			sq_dist = right_dist;
+			sq_press += step;
 		}
 
 		step /= 2.0;
 	}
 
-	fig->square_dist = dist;
-	fig->square_press = press;
+	/* Проверка на окружность */
+	float ci_press = 0.5;
+	step = 0.25;
+	float ci_dist = maybe_sphere( fig, ci_press );
+
+	for( i = 0; i < 6/* Число итераций */; i++ )
+	{
+		float left_dist = maybe_sphere( fig, ci_press - step );
+		float right_dist = maybe_sphere( fig, ci_press + step );
+
+		if( left_dist < ci_dist )
+		{
+			ci_dist = left_dist;
+			ci_press -= step;
+		}
+
+		if( right_dist < ci_dist )
+		{
+			ci_dist = right_dist;
+			ci_press += step;
+		}
+
+		step /= 2.0;
+	}
+
+	fig->is_circle = ( ci_dist < sq_dist ) ? 1/* true */ : 0/* false */;
+	fig->press = ( ci_dist < sq_dist ) ? ci_press : sq_press;
 
 	return 1;
 }
@@ -486,24 +538,8 @@ void process_rgb_frame( uint8_t *img )
 			c_tuz->in_cell = tuz_grid[ tgt_in_gid ];
 			tuz_grid[ tgt_in_gid ] = c_tuz;
 
-			
-
-        		glBegin( GL_LINE_LOOP );
-		        if( tuz_cnt < STABLE_TUZERS )
-			{
-				glColor3f( 0.5, 1, 0.5 );
-			}
-			else
-			{
-				glColor3f( 1, 0.2, 0.2 );
-			}
-
-		        glVertex3f( fig.center_x - 10, fig.center_y - 10, 0 );
-		        glVertex3f( fig.center_x - 10, fig.center_y + 10, 0 );
-		        glVertex3f( fig.center_x + 10, fig.center_y + 10, 0 );
-		        glVertex3f( fig.center_x + 10, fig.center_y - 10, 0 );
-		        glEnd();
-
+		
+			/* --------- Рисуем только для отладки ---------- */	
 			glBegin( GL_LINES );
 			glColor3f( 0.2, 0.2, 1.0 );
 			glVertex3f( fig.center_x, fig.center_y, 0 );
@@ -513,24 +549,50 @@ void process_rgb_frame( uint8_t *img )
 			glVertex3f( fig.center_x, fig.center_y, 0 );
 			glVertex3f( fig.center_x + fig.point_Xs[ fig.far_point_id ], 
 				fig.center_y + fig.point_Ys[ fig.far_point_id ], 0 );
-
 			glEnd();
 
-			/* результаты распознавания */
-        		glBegin( GL_LINE_LOOP );
-			glColor3f( 1.0, 0.0, 0.0 );
-			glVertex3f( fig.radius * cos(fig.angle) + fig.center_x, 
-				fig.radius * sin( fig.angle ) + fig.center_y, 0.0 );
+			
+			/* -------- Результаты распознавания нарисуем тут (только для отладки) */
+		        if( tuz_cnt < STABLE_TUZERS )
+				glColor3f( 0.7, 0, 0 );
+			else
+				glColor3f( 1, 0.1, 0.1 );
 
-			glVertex3f( fig.square_press * fig.radius * cos(fig.angle + M_PI/2 ) + fig.center_x, 
-				fig.square_press * fig.radius * sin( fig.angle + M_PI/2 ) + fig.center_y, 0.0 );
+			if( fig.is_circle )
+			{
+				glBegin( GL_LINE_LOOP );
+				glColor3f( 1.0, 0.0, 0.0 );
 
-			glVertex3f( fig.radius * cos(fig.angle + M_PI ) + fig.center_x, 
-				fig.radius * sin( fig.angle + M_PI ) + fig.center_y, 0.0 );
+				float alf;
+				for( alf = 0.0; alf < M_PI * 2; alf += M_PI/16 )
+				{
+					float x = fig.radius * cos( alf );
+					float y = fig.radius * sin( alf ) * fig.press;
+					
+					glVertex3f( x * cos( fig.angle ) - y * sin( fig.angle ) + fig.center_x, 
+						x * sin( fig.angle ) + y * cos( fig.angle ) + fig.center_y, 0.0 );
+				}
 
-			glVertex3f( fig.square_press * fig.radius * cos(fig.angle + M_PI * 1.5 ) + fig.center_x, 
-				fig.square_press * fig.radius * sin( fig.angle + M_PI * 1.5 ) + fig.center_y, 0.0 );
-			glEnd();
+				glEnd();
+			}
+			else
+			{
+        			glBegin( GL_LINE_LOOP );
+				glColor3f( 1.0, 0.0, 0.0 );
+				glVertex3f( fig.radius * cos(fig.angle) + fig.center_x, 
+					fig.radius * sin( fig.angle ) + fig.center_y, 0.0 );
+
+				glVertex3f( fig.press * fig.radius * cos(fig.angle + M_PI/2 ) + fig.center_x, 
+					fig.press * fig.radius * sin( fig.angle + M_PI/2 ) + fig.center_y, 0.0 );
+
+				glVertex3f( fig.radius * cos(fig.angle + M_PI ) + fig.center_x, 
+					fig.radius * sin( fig.angle + M_PI ) + fig.center_y, 0.0 );
+
+				glVertex3f( fig.press * fig.radius * cos(fig.angle + M_PI * 1.5 ) 
+					+ fig.center_x, fig.press * fig.radius * sin( fig.angle + M_PI * 1.5 ) 
+					+ fig.center_y, 0.0 );
+				glEnd();
+			}
 
 			
 			/* Поднимем тузера. */
@@ -549,7 +611,7 @@ next_tuzer:
 		c_tuz = c_tuz->next;
 	}
 
-	/* ----------- Распечатаем грид */
+	/* ----------- Распечатаем грид (только для отладки) */
 	int ix,iy;
 	for( iy = 0; iy < img_height / GRID_WY; iy++ )
 	{
