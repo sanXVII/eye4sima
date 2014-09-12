@@ -9,8 +9,10 @@
 #include <string.h>
 #include <assert.h>
 #include <math.h>
+#include <time.h>
 
 
+#define USEC_PER_FRAME 30000/* 20 млсек */
 
 typedef struct img_t
 {
@@ -80,14 +82,19 @@ typedef struct tuzer
 	int dx;
 	int dy;
 
+	/* Столько раз подряд ничего нет на x:y */
+	int fail_cnt;
+
 	struct tuzer * next;
 
 	struct tuzer * in_cell;
 	float radius_square;
 } tuzer;
 
-#define TUZER_CNT 1200
-#define STABLE_TUZERS 800
+/* Около 2 секунды терпим ошибочные координаты тузера */
+#define FAIL_TOLERANCE 66
+
+#define TUZER_CNT 12000
 static tuzer tuzers[ TUZER_CNT ];
 static tuzer * first_tuzer = 0l;
 
@@ -481,17 +488,42 @@ void process_rgb_frame( uint8_t *img )
 
 	/* Пробегаемся по всем вероятным точкам в поисках кругов и квадратов */
 	int tuz_cnt = 0;
+	int tm_check = 0;
+	struct timespec start_tm;
+	clock_gettime( CLOCK_MONOTONIC, &start_tm );
+
 	tuzer * p_tuz = 0l;
 	tuzer * c_tuz = first_tuzer;
 	while( c_tuz )
 	{
 		tuz_cnt++;
+		c_tuz->fail_cnt++;
+
+		if( !( tm_check-- ) )
+		{
+			tm_check += 25/* только изредка проверяем время */;
+			
+			struct timespec tm;
+			clock_gettime( CLOCK_MONOTONIC, &tm );
+
+			long us = ( tm.tv_sec - start_tm.tv_sec ) * 1000000/* мксек в 1 сек */;
+			us += ( tm.tv_nsec - start_tm.tv_nsec ) / 1000/* нсек в 1 мксек */;
+
+			if( us > USEC_PER_FRAME )
+			{
+				/* Выходим из цикла поиска пятен */
+				printf( "Стоп tuzer-цикл на %i тузер.\n", tuz_cnt );
+				break;
+			}
+		}
+		
 
 		maybe_figure fig;
-		int new_random_enter = ( tuz_cnt < STABLE_TUZERS ) ? 0 : 1;
 
-		fig.enter_x = new_random_enter ? rand() % img_width : ( c_tuz->x + c_tuz->dx );
-		fig.enter_y = new_random_enter ? rand() % img_height : ( c_tuz->y + c_tuz->dy );
+		fig.enter_x = ( c_tuz->fail_cnt > FAIL_TOLERANCE ) 
+			? rand() % img_width : ( c_tuz->x + c_tuz->dx );
+		fig.enter_y = ( c_tuz->fail_cnt > FAIL_TOLERANCE ) 
+			? rand() % img_height : ( c_tuz->y + c_tuz->dy );
 		fig.type = 0/* unknown figure */;
 		
 		/* Свободна ли точка? */
@@ -522,8 +554,8 @@ void process_rgb_frame( uint8_t *img )
 				goto next_tuzer; /* Значит за пределами экрана */
 
 			/* Фигура есть. Координаты запомним. */
-			c_tuz->dx = new_random_enter ? 0 : fig.center_x - c_tuz->x;
-			c_tuz->dy =  new_random_enter ? 0 : fig.center_y - c_tuz->y;
+			c_tuz->dx = ( c_tuz->fail_cnt > FAIL_TOLERANCE ) ? 0 : fig.center_x - c_tuz->x;
+			c_tuz->dy = ( c_tuz->fail_cnt > FAIL_TOLERANCE ) ? 0 : fig.center_y - c_tuz->y;
 			c_tuz->x = fig.center_x;
 			c_tuz->y = fig.center_y;
 
@@ -553,7 +585,7 @@ void process_rgb_frame( uint8_t *img )
 
 			
 			/* -------- Результаты распознавания нарисуем тут (только для отладки) */
-		        if( tuz_cnt < STABLE_TUZERS )
+		        if( c_tuz->fail_cnt > FAIL_TOLERANCE )
 				glColor3f( 0.7, 0, 0 );
 			else
 				glColor3f( 1, 0.1, 0.1 );
@@ -596,6 +628,7 @@ void process_rgb_frame( uint8_t *img )
 
 			
 			/* Поднимем тузера. */
+			c_tuz->fail_cnt = 0;
 			if( p_tuz )
 			{
 				p_tuz->next = c_tuz->next;
