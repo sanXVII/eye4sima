@@ -82,6 +82,12 @@ typedef struct tuzer
 	int dx;
 	int dy;
 
+	int first_x;
+	int first_y;
+
+	/* Ожидание первого выхода за радиус */
+	int mv_wait; /* -1:движение уже наблюдалось */
+
 	/* Столько раз подряд ничего нет на x:y */
 	int fail_cnt;
 
@@ -125,8 +131,10 @@ void init_img_processor( int width, int height )
 		c_tuz->next = first_tuzer;
 		first_tuzer = c_tuz;
 
-		c_tuz->x = rand() % width;
-		c_tuz->y = rand() % height;
+		//c_tuz->x = rand() % width;
+		//c_tuz->y = rand() % height;
+
+		c_tuz->fail_cnt = FAIL_TOLERANCE;
 	}
 	
 	/* Сеть для поиска близких тузеров */
@@ -496,8 +504,6 @@ void process_rgb_frame( uint8_t *img )
 	tuzer * c_tuz = first_tuzer;
 	while( c_tuz )
 	{
-		tuz_cnt++;
-		c_tuz->fail_cnt++;
 
 		if( !( tm_check-- ) )
 		{
@@ -516,7 +522,13 @@ void process_rgb_frame( uint8_t *img )
 				break;
 			}
 		}
-		
+
+
+		/* ------------------------------- Если c_tuz->fail_cnt==0 и если статичный */
+
+
+		tuz_cnt++;
+		c_tuz->fail_cnt++;
 
 		maybe_figure fig;
 
@@ -554,15 +566,27 @@ void process_rgb_frame( uint8_t *img )
 				goto next_tuzer; /* Значит за пределами экрана */
 
 			/* Фигура есть. Координаты запомним. */
-			c_tuz->dx = ( c_tuz->fail_cnt > FAIL_TOLERANCE ) ? 0 : fig.center_x - c_tuz->x;
-			c_tuz->dy = ( c_tuz->fail_cnt > FAIL_TOLERANCE ) ? 0 : fig.center_y - c_tuz->y;
 			c_tuz->x = fig.center_x;
 			c_tuz->y = fig.center_y;
 
+			c_tuz->dx = ( c_tuz->fail_cnt > FAIL_TOLERANCE ) ? 0 : fig.center_x - c_tuz->x;
+			c_tuz->dy = ( c_tuz->fail_cnt > FAIL_TOLERANCE ) ? 0 : fig.center_y - c_tuz->y;
+			c_tuz->first_x = ( c_tuz->fail_cnt > FAIL_TOLERANCE ) ? c_tuz->x : c_tuz->first_x;
+			c_tuz->first_y = ( c_tuz->fail_cnt > FAIL_TOLERANCE ) ? c_tuz->y : c_tuz->first_y;
+
+			c_tuz->mv_wait = ( c_tuz->fail_cnt > FAIL_TOLERANCE ) ? 0 : c_tuz->mv_wait;
+
+
 			c_tuz->radius_square = far_square;
 
-			//if( c_tuz->radius_square < 4.0 )
-			//	goto next_tuzer; /* Совсем шум */
+
+			/* Детектор движения пятнышка  */
+			float jmp_square = ( c_tuz->first_x - c_tuz->x ) * ( c_tuz->first_x - c_tuz->x )
+					+ ( c_tuz->first_y - c_tuz->y ) * ( c_tuz->first_y - c_tuz->y );
+
+			c_tuz->mv_wait = ( jmp_square > c_tuz->radius_square ) ? -1 : c_tuz->mv_wait;
+			c_tuz->mv_wait = ( c_tuz->mv_wait != -1 ) ? c_tuz->mv_wait + 1 : c_tuz->mv_wait;
+
 
 			/* Подсчитаем ячейку на карте под это точку */
 			int tgt_in_gid = ( c_tuz->x / GRID_WX ) + tuz_grid_w * ( c_tuz->y / GRID_WY );
@@ -579,21 +603,22 @@ void process_rgb_frame( uint8_t *img )
 
 			glColor3f( 1.0, 1.0, 0.3 );
 			glVertex3f( fig.center_x, fig.center_y, 0 );
-			glVertex3f( fig.center_x + fig.point_Xs[ fig.far_point_id ], 
-				fig.center_y + fig.point_Ys[ fig.far_point_id ], 0 );
+			glVertex3f( c_tuz->first_x, c_tuz->first_y, 0 );
+			//glVertex3f( fig.center_x + fig.point_Xs[ fig.far_point_id ], 
+			//	fig.center_y + fig.point_Ys[ fig.far_point_id ], 0 );
 			glEnd();
 
 			
 			/* -------- Результаты распознавания нарисуем тут (только для отладки) */
-		        if( c_tuz->fail_cnt > FAIL_TOLERANCE )
-				glColor3f( 0.7, 0, 0 );
-			else
-				glColor3f( 1, 0.1, 0.1 );
+			glColor3f( 0.5, 0.5, 0.5 );
+			if( c_tuz->mv_wait > 100 )
+				glColor3f( 0.1, 1, 0.1 );
+			if( c_tuz->mv_wait == -1 )
+				glColor3f( 1, 0.1, 0.1 ); 
 
 			if( fig.is_circle )
 			{
 				glBegin( GL_LINE_LOOP );
-				glColor3f( 1.0, 0.0, 0.0 );
 
 				float alf;
 				for( alf = 0.0; alf < M_PI * 2; alf += M_PI/16 )
@@ -610,7 +635,6 @@ void process_rgb_frame( uint8_t *img )
 			else
 			{
         			glBegin( GL_LINE_LOOP );
-				glColor3f( 1.0, 0.0, 0.0 );
 				glVertex3f( fig.radius * cos(fig.angle) + fig.center_x, 
 					fig.radius * sin( fig.angle ) + fig.center_y, 0.0 );
 
