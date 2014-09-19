@@ -96,6 +96,11 @@ typedef struct tuzer
 
 	struct tuzer * in_cell;
 	float radius_square;
+
+	float angle; /* Угол фигуры */
+	int is_circle; /* 1:круг 0:квадрат */
+	float press;
+	float radius; /* Самая дальняя точка фигуры */
 } tuzer;
 
 /* Около 2 секунды терпим ошибочные координаты тузера */
@@ -394,11 +399,10 @@ static int X_cycle( img_t * frame, maybe_figure * fig )
 	/* Носом фигуры считаем fig->far_point_id ... Далее определяем тип фигурки */
 	
 	/* Определяем угол для носа */
-
 	fig->radius = fig->point_Xs[ fig->far_point_id ] * fig->point_Xs[ fig->far_point_id ]; 
 	fig->radius += fig->point_Ys[ fig->far_point_id ] * fig->point_Ys[ fig->far_point_id ];
 	fig->radius = sqrt( fig->radius );
-	if( fig->radius < 1.0 )
+	if( fig->radius < 2.0 )
 		return 0; /* Слишком мелкое пятно */
 
 	fig->angle = asin( fig->point_Ys[ fig->far_point_id ] / fig->radius ); /* от -Pi/2 до +Pi/2 */
@@ -458,6 +462,10 @@ static int X_cycle( img_t * frame, maybe_figure * fig )
 	fig->is_circle = ( ci_dist < sq_dist ) ? 1/* true */ : 0/* false */;
 	fig->press = ( ci_dist < sq_dist ) ? ci_press : sq_press;
 
+	/* Если слишком сплющенный, то отбой */
+	if( fig->press < 0.2 )
+		return 0;
+
 	return 1;
 }
 
@@ -483,6 +491,70 @@ static int check_4free( int x, int y )
 	return 1; /* Свободно */
 }
 
+static void show_tuzer( tuzer * c_tuz )
+{
+	/* Подсчитаем ячейку на карте под это точку и займем площадку */
+	int tgt_in_gid = ( c_tuz->x / GRID_WX ) + tuz_grid_w * ( c_tuz->y / GRID_WY );
+	assert( tgt_in_gid < ( tuz_grid_sz / sizeof( tuzer * ) ) );
+	c_tuz->in_cell = tuz_grid[ tgt_in_gid ];
+	tuz_grid[ tgt_in_gid ] = c_tuz;
+
+		
+	/* --------- Рисуем только для отладки ---------- */	
+	glBegin( GL_LINES );
+	glColor3f( 0.2, 0.2, 1.0 );
+	glVertex3f( c_tuz->x, c_tuz->y, 0 );
+	glVertex3f( c_tuz->x - c_tuz->dx, c_tuz->y - c_tuz->dy, 0 );
+
+	glColor3f( 1.0, 1.0, 0.3 );
+	glVertex3f( c_tuz->x, c_tuz->y, 0 );
+	glVertex3f( c_tuz->first_x, c_tuz->first_y, 0 );
+	glEnd();
+
+	/* -------- Результаты распознавания нарисуем тут (только для отладки) */
+	glColor3f( 0.5, 0.5, 0.5 );
+	if( c_tuz->mv_wait > 100 )
+		glColor3f( 0.1, 1, 0.1 );
+	if( c_tuz->mv_wait == -1 )
+		glColor3f( 1, 0.1, 0.1 ); 
+
+	float rad = sqrt( c_tuz->radius_square );
+
+	if( c_tuz->is_circle )
+	{
+		glBegin( GL_LINE_LOOP );
+
+		float alf;
+		for( alf = 0.0; alf < M_PI * 2; alf += M_PI/16 )
+		{
+			float x = rad * cos( alf );
+			float y = rad * sin( alf ) * c_tuz->press;
+					
+			glVertex3f( x * cos( c_tuz->angle ) - y * sin( c_tuz->angle ) + c_tuz->x, 
+				x * sin( c_tuz->angle ) + y * cos( c_tuz->angle ) + c_tuz->y, 0.0 );
+		}
+
+		glEnd();
+	}
+	else
+	{
+       		glBegin( GL_LINE_LOOP );
+		glVertex3f( rad * cos(c_tuz->angle) + c_tuz->x, 
+			rad * sin( c_tuz->angle ) + c_tuz->y, 0.0 );
+
+		glVertex3f( c_tuz->press * rad * cos(c_tuz->angle + M_PI/2 ) + c_tuz->x, 
+			c_tuz->press * rad * sin( c_tuz->angle + M_PI/2 ) + c_tuz->y, 0.0 );
+
+		glVertex3f( rad * cos(c_tuz->angle + M_PI ) + c_tuz->x, 
+			rad * sin( c_tuz->angle + M_PI ) + c_tuz->y, 0.0 );
+
+		glVertex3f( c_tuz->press * rad * cos(c_tuz->angle + M_PI * 1.5 ) 
+			+ c_tuz->x, c_tuz->press * rad * sin( c_tuz->angle + M_PI * 1.5 ) 
+			+ c_tuz->y, 0.0 );
+		glEnd();
+	}
+}
+
 void process_rgb_frame( uint8_t *img )
 {
 
@@ -505,6 +577,7 @@ void process_rgb_frame( uint8_t *img )
 	tuzer * c_tuz = first_tuzer;
 	while( c_tuz )
 	{
+		tuz_cnt++;
 
 		if( !( tm_check-- ) )
 		{
@@ -529,17 +602,17 @@ void process_rgb_frame( uint8_t *img )
 		{
 			if( !c_tuz->pause )
 			{
-				/* Тут нужно организовать пропуск */
-				/* В начало очереди передвинуть */
-				/* Отметить на карте */
-
 				c_tuz->pause = 33; /* Следующую секунду не проверяем */
 			}
-			c_tuz->pause--;
+			else
+			{
+				c_tuz->pause--;
+				show_tuzer( c_tuz );
+				goto jump_up_tuzer;
+			}
 		}
 
 
-		tuz_cnt++;
 		c_tuz->fail_cnt++;
 
 		maybe_figure fig;
@@ -556,41 +629,27 @@ void process_rgb_frame( uint8_t *img )
 
 		if( X_cycle( &frame, &fig ) )
 		{
-			float near_square = fig.point_Xs[ fig.near_point_id ]
-				* fig.point_Xs[ fig.near_point_id ]
-				+ fig.point_Ys[ fig.near_point_id ]
-				* fig.point_Ys[ fig.near_point_id ];
-
-			float far_square = fig.point_Xs[ fig.far_point_id ]
-				* fig.point_Xs[ fig.far_point_id ]
-				+ fig.point_Ys[ fig.far_point_id ]
-				* fig.point_Ys[ fig.far_point_id ];
-
-
-			if( far_square < 4.0 )
-				goto next_tuzer; /* Подозрительно мелкий */
-
-			if( near_square * 49.0 < far_square )
-				goto next_tuzer; /* Подозрительно сплющенный */
-
 			/* Перепроверим с новым центром */
 			if( !check_4free( fig.center_x, fig.center_y ) )
 				goto next_tuzer; /* Значит за пределами экрана */
 
-			/* Фигура есть. Координаты запомним. */
-			c_tuz->x = fig.center_x;
-			c_tuz->y = fig.center_y;
-
+			/* Фигура есть. Сначала определим перемещение. */
 			c_tuz->dx = ( c_tuz->fail_cnt > FAIL_TOLERANCE ) ? 0 : fig.center_x - c_tuz->x;
 			c_tuz->dy = ( c_tuz->fail_cnt > FAIL_TOLERANCE ) ? 0 : fig.center_y - c_tuz->y;
+
+			c_tuz->x = fig.center_x;
+			c_tuz->y = fig.center_y;
+			c_tuz->angle = fig.angle;
+			c_tuz->is_circle = fig.is_circle;
+			c_tuz->press = fig.press;
+			c_tuz->radius = fig.radius;
+
 			c_tuz->first_x = ( c_tuz->fail_cnt > FAIL_TOLERANCE ) ? c_tuz->x : c_tuz->first_x;
 			c_tuz->first_y = ( c_tuz->fail_cnt > FAIL_TOLERANCE ) ? c_tuz->y : c_tuz->first_y;
 
 			c_tuz->mv_wait = ( c_tuz->fail_cnt > FAIL_TOLERANCE ) ? 0 : c_tuz->mv_wait;
 
-
-			c_tuz->radius_square = far_square;
-
+			c_tuz->radius_square = fig.radius * fig.radius;
 
 			/* Детектор движения пятнышка  */
 			float jmp_square = ( c_tuz->first_x - c_tuz->x ) * ( c_tuz->first_x - c_tuz->x )
@@ -599,85 +658,30 @@ void process_rgb_frame( uint8_t *img )
 			c_tuz->mv_wait = ( jmp_square > c_tuz->radius_square ) ? -1 : c_tuz->mv_wait;
 			c_tuz->mv_wait = ( c_tuz->mv_wait != -1 ) ? c_tuz->mv_wait + 1 : c_tuz->mv_wait;
 
-
-			/* Подсчитаем ячейку на карте под это точку */
-			int tgt_in_gid = ( c_tuz->x / GRID_WX ) + tuz_grid_w * ( c_tuz->y / GRID_WY );
-			assert( tgt_in_gid < ( tuz_grid_sz / sizeof( tuzer * ) ) );
-			c_tuz->in_cell = tuz_grid[ tgt_in_gid ];
-			tuz_grid[ tgt_in_gid ] = c_tuz;
-
-		
-			/* --------- Рисуем только для отладки ---------- */	
-			glBegin( GL_LINES );
-			glColor3f( 0.2, 0.2, 1.0 );
-			glVertex3f( fig.center_x, fig.center_y, 0 );
-			glVertex3f( fig.center_x - c_tuz->dx, fig.center_y - c_tuz->dy, 0 );
-
-			glColor3f( 1.0, 1.0, 0.3 );
-			glVertex3f( fig.center_x, fig.center_y, 0 );
-			glVertex3f( c_tuz->first_x, c_tuz->first_y, 0 );
-			//glVertex3f( fig.center_x + fig.point_Xs[ fig.far_point_id ], 
-			//	fig.center_y + fig.point_Ys[ fig.far_point_id ], 0 );
-			glEnd();
-
-			
-			/* -------- Результаты распознавания нарисуем тут (только для отладки) */
-			glColor3f( 0.5, 0.5, 0.5 );
-			if( c_tuz->mv_wait > 100 )
-				glColor3f( 0.1, 1, 0.1 );
-			if( c_tuz->mv_wait == -1 )
-				glColor3f( 1, 0.1, 0.1 ); 
-
-			if( fig.is_circle )
-			{
-				glBegin( GL_LINE_LOOP );
-
-				float alf;
-				for( alf = 0.0; alf < M_PI * 2; alf += M_PI/16 )
-				{
-					float x = fig.radius * cos( alf );
-					float y = fig.radius * sin( alf ) * fig.press;
-					
-					glVertex3f( x * cos( fig.angle ) - y * sin( fig.angle ) + fig.center_x, 
-						x * sin( fig.angle ) + y * cos( fig.angle ) + fig.center_y, 0.0 );
-				}
-
-				glEnd();
-			}
-			else
-			{
-        			glBegin( GL_LINE_LOOP );
-				glVertex3f( fig.radius * cos(fig.angle) + fig.center_x, 
-					fig.radius * sin( fig.angle ) + fig.center_y, 0.0 );
-
-				glVertex3f( fig.press * fig.radius * cos(fig.angle + M_PI/2 ) + fig.center_x, 
-					fig.press * fig.radius * sin( fig.angle + M_PI/2 ) + fig.center_y, 0.0 );
-
-				glVertex3f( fig.radius * cos(fig.angle + M_PI ) + fig.center_x, 
-					fig.radius * sin( fig.angle + M_PI ) + fig.center_y, 0.0 );
-
-				glVertex3f( fig.press * fig.radius * cos(fig.angle + M_PI * 1.5 ) 
-					+ fig.center_x, fig.press * fig.radius * sin( fig.angle + M_PI * 1.5 ) 
-					+ fig.center_y, 0.0 );
-				glEnd();
-			}
-
-			
-			/* Поднимем тузера. */
 			c_tuz->fail_cnt = 0;
-			if( p_tuz )
-			{
-				p_tuz->next = c_tuz->next;
-				c_tuz->next = first_tuzer;
-				first_tuzer = c_tuz;
 
-				c_tuz = p_tuz->next;
-				continue;
-			}
+			show_tuzer( c_tuz );
+			goto jump_up_tuzer;
 		}
+
 next_tuzer:
 		p_tuz = c_tuz;
 		c_tuz = c_tuz->next;
+		continue;
+
+jump_up_tuzer:
+		/* Поднимем тузера. */
+		if( p_tuz )
+		{
+			p_tuz->next = c_tuz->next;
+			c_tuz->next = first_tuzer;
+			first_tuzer = c_tuz;
+	
+			c_tuz = p_tuz->next;
+			continue;
+		}
+		/* Это случается если тузер и так уже на верху*/
+		goto next_tuzer;
 	}
 
 	/* ----------- Распечатаем грид (только для отладки) */
