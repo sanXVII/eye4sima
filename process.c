@@ -42,7 +42,7 @@ typedef struct border_find_t
 } border_find_t;
 
 #define RAY_LEN 100
-#define X_CYCLE_CNT 100
+#define X_CYCLE_CNT 200
 typedef struct maybe_figure
 {
 	int enter_x;
@@ -402,7 +402,7 @@ static int X_cycle( img_t * frame, maybe_figure * fig )
 	fig->radius = fig->point_Xs[ fig->far_point_id ] * fig->point_Xs[ fig->far_point_id ]; 
 	fig->radius += fig->point_Ys[ fig->far_point_id ] * fig->point_Ys[ fig->far_point_id ];
 	fig->radius = sqrt( fig->radius );
-	if( fig->radius < 2.0 )
+	if( fig->radius < 4.0 )
 		return 0; /* Слишком мелкое пятно */
 
 	fig->angle = asin( fig->point_Ys[ fig->far_point_id ] / fig->radius ); /* от -Pi/2 до +Pi/2 */
@@ -463,7 +463,7 @@ static int X_cycle( img_t * frame, maybe_figure * fig )
 	fig->press = ( ci_dist < sq_dist ) ? ci_press : sq_press;
 
 	/* Если слишком сплющенный, то отбой */
-	if( fig->press < 0.2 )
+	if( fig->press < 0.5 )
 		return 0;
 
 	return 1;
