@@ -12,7 +12,8 @@
 #include <time.h>
 
 
-#define USEC_PER_FRAME 30000/* 20 млсек */
+#define USEC_SPOTS    25000/* 25 млсек */
+#define USEC_MARKERS  (USEC_SPOTS + 5000)
 
 typedef struct img_t
 {
@@ -499,6 +500,8 @@ static void show_tuzer( tuzer * c_tuz )
 	c_tuz->in_cell = tuz_grid[ tgt_in_gid ];
 	tuz_grid[ tgt_in_gid ] = c_tuz;
 
+	/* Если фигура-круг, то нам нужно учесть его для маркеров */
+	
 		
 	/* --------- Рисуем только для отладки ---------- */	
 	glBegin( GL_LINES );
@@ -555,6 +558,21 @@ static void show_tuzer( tuzer * c_tuz )
 	}
 }
 
+
+static int is_time_over( struct timespec * start_tm, long usecs )
+{
+	struct timespec tm;
+	clock_gettime( CLOCK_MONOTONIC, &tm );
+
+	long us = ( tm.tv_sec - start_tm->tv_sec ) * 1000000/* мксек в 1 сек */;
+	us += ( tm.tv_nsec - start_tm->tv_nsec ) / 1000/* нсек в 1 мксек */;
+
+	if( us > usecs )
+		return 1; /* yes */
+
+	return 0; /* no */
+}
+
 void process_rgb_frame( uint8_t *img )
 {
 
@@ -582,14 +600,7 @@ void process_rgb_frame( uint8_t *img )
 		if( !( tm_check-- ) )
 		{
 			tm_check += 25/* только изредка проверяем время */;
-			
-			struct timespec tm;
-			clock_gettime( CLOCK_MONOTONIC, &tm );
-
-			long us = ( tm.tv_sec - start_tm.tv_sec ) * 1000000/* мксек в 1 сек */;
-			us += ( tm.tv_nsec - start_tm.tv_nsec ) / 1000/* нсек в 1 мксек */;
-
-			if( us > USEC_PER_FRAME )
+			if( is_time_over( &start_tm, USEC_SPOTS ) )
 			{
 				/* Выходим из цикла поиска пятен */
 				printf( "Стоп tuzer-цикл на %i тузер.\n", tuz_cnt );
@@ -683,6 +694,27 @@ jump_up_tuzer:
 		/* Это случается если тузер и так уже на верху*/
 		goto next_tuzer;
 	}
+
+	/* Ищем маркеры */
+	int mrk_fcnt = 0;
+	while( 1 )
+	{ 
+		mrk_fcnt++;
+		if( !( tm_check-- ) )
+		{
+			tm_check += 2500/* только изредка проверяем время */;
+			if( is_time_over( &start_tm, USEC_MARKERS ) )
+			{
+				/* Выходим из цикла маркеров */
+				printf( "Стоп маркер-цикл на %i пробе.\n", mrk_fcnt );
+				break;
+                        }
+		}
+
+		/* Выбираем случайно 2 круга и от них сравниваем шаблон */
+	}
+
+
 
 	/* ----------- Распечатаем грид (только для отладки) */
 	int ix,iy;
