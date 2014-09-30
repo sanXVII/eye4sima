@@ -12,8 +12,38 @@
 #include <time.h>
 
 
+
+
+typedef enum { MP_END, MP_FIL, MP_CLR } mp_type;
+
+typedef struct mark_point
+{
+	int x;
+	int y;
+	mp_type type; /* 0-конец 1-точка 2-пусто */
+} mark_point;
+
+
+/* +o+ */
+/* o+o */
+/* o+o */
+/* ooo */
+
+/* Первые две точки маркера обязательно непустые */
+mark_point mark1[] = {
+{  0, 0, MP_FIL }, {  1, 3, MP_FIL }, { -1, 3, MP_FIL },
+{  0, 2, MP_CLR }, { -1, 2, MP_FIL }, {  1, 2, MP_FIL },
+{  0, 1, MP_CLR }, { -1, 1, MP_FIL }, {  1, 1, MP_FIL },
+{ -1, 0, MP_CLR }, {  1, 0, MP_CLR }, {  0, 3, MP_FIL },
+{  0, 0, MP_END }
+};
+
+
+
+
+
 #define USEC_SPOTS    25000/* 25 млсек */
-#define USEC_MARKERS  (USEC_SPOTS + 5000)
+#define USEC_MARKERS  (USEC_SPOTS + 3000)
 
 typedef struct img_t
 {
@@ -110,6 +140,29 @@ typedef struct tuzer
 #define TUZER_CNT 12000
 static tuzer tuzers[ TUZER_CNT ];
 static tuzer * first_tuzer = 0l;
+
+/* Резиновый массив для учета маркерных кругов */
+#define CIRCLES_BLOCK 3
+static tuzer ** circles = 0l;
+static int circles_cnt = 0;
+static int max_circles = 0;
+
+static void check_circles_cnt( void )
+{
+	if( circles_cnt >= max_circles )
+	{
+		/* Расширить массив */
+		tuzer ** n_cir = ( tuzer ** )malloc( sizeof( tuzer * ) * ( max_circles + CIRCLES_BLOCK ) );
+		assert( n_cir );
+		if( circles )
+		{
+			memcpy( n_cir, circles, sizeof( tuzer * ) * max_circles );
+			free( circles );
+		}
+		max_circles += CIRCLES_BLOCK;
+		circles = n_cir;
+	}
+}
 
 
 /* Подготовиться к работе */
@@ -501,7 +554,9 @@ static void show_tuzer( tuzer * c_tuz )
 	tuz_grid[ tgt_in_gid ] = c_tuz;
 
 	/* Если фигура-круг, то нам нужно учесть его для маркеров */
-	
+	check_circles_cnt();
+	circles[ circles_cnt ] = c_tuz;
+	circles_cnt++;
 		
 	/* --------- Рисуем только для отладки ---------- */	
 	glBegin( GL_LINES );
@@ -559,6 +614,16 @@ static void show_tuzer( tuzer * c_tuz )
 }
 
 
+static int check_marker( mark_point * mp, int circ1_id, int circ2_id )
+{
+	if( circ1_id == circ2_id ) return 0;
+
+	/* Определяем коорднаты 0:0, поворот, масштаб */
+
+	return 0;
+}
+
+
 static int is_time_over( struct timespec * start_tm, long usecs )
 {
 	struct timespec tm;
@@ -591,6 +656,7 @@ void process_rgb_frame( uint8_t *img )
 	struct timespec start_tm;
 	clock_gettime( CLOCK_MONOTONIC, &start_tm );
 
+	circles_cnt = 0;
 	tuzer * p_tuz = 0l;
 	tuzer * c_tuz = first_tuzer;
 	while( c_tuz )
@@ -707,16 +773,22 @@ jump_up_tuzer:
 			{
 				/* Выходим из цикла маркеров */
 				printf( "Стоп маркер-цикл на %i пробе.\n", mrk_fcnt );
+				//printf( "circle cnt=%i .. max=%i\n", circles_cnt, max_circles );
 				break;
                         }
 		}
 
-		/* Выбираем случайно 2 круга и от них сравниваем шаблон */
+		/* Выбираем случайно 2 круга и накладываем шаблон */
+		if( check_marker( mark1, rand() % circles_cnt, rand() % circles_cnt ) )
+		{
+			/* Нашелся маркер.. */
+			break;
+		}
 	}
 
 
 
-	/* ----------- Распечатаем грид (только для отладки) */
+	/* ----------- Распечатаем грид (только для отладки) ----------- */
 	int ix,iy;
 	for( iy = 0; iy < img_height / GRID_WY; iy++ )
 	{
