@@ -551,7 +551,7 @@ static int check_4free( int x, int y )
 static void show_tuzer( tuzer * c_tuz )
 {
 	/* Подсчитаем ячейку на карте под это точку и займем площадку */
-	int tgt_in_gid = ( c_tuz->x / GRID_WX ) + tuz_grid_w * ( c_tuz->y / GRID_WY );
+	int tgt_in_gid = ( ( int )c_tuz->x / GRID_WX ) + tuz_grid_w * ( ( int )c_tuz->y / GRID_WY );
 	assert( tgt_in_gid < ( tuz_grid_sz / sizeof( tuzer * ) ) );
 	c_tuz->in_cell = tuz_grid[ tgt_in_gid ];
 	tuz_grid[ tgt_in_gid ] = c_tuz;
@@ -621,7 +621,54 @@ static int check_marker( mark_point * mp, int circ1_id, int circ2_id )
 {
 	if( circ1_id == circ2_id ) return 0;
 
-	/* Определяем коорднаты 0:0, поворот, масштаб */
+	/* Координатой маркера будем считать circles[ circ1_id ]->x:y */
+	/* Нужно найти, поворот, масштаб */
+	/* Расстояние circ1 -> circ2 */
+printf( "circ1_id=%i .. circ2_id=%i .. \n", circ1_id, circ2_id );	
+return 0;
+	float r_x = circles[ circ2_id ]->x - circles[ circ1_id ]->x;
+	float r_y = circles[ circ2_id ]->y - circles[ circ1_id ]->y;
+	float r_l = sqrt( r_x * r_x + r_y * r_y );
+
+	if( r_l < circles[ circ1_id ]->radius ) return 0;
+
+printf( "r_l = %f\n", r_l );
+	/* Угол circ1 -> circ2  */
+	float r_ang = asin( r_y / r_l );
+	r_ang = ( r_x < 0.0 ) ? ( M_PI - r_ang ) : r_ang; 
+
+	/* Расстояние 1 -> 2 шаблона */
+	float t_x = mp[ 1 ].x - mp[ 0 ].x;
+	float t_y = mp[ 1 ].y - mp[ 0 ].y;
+	float t_l = sqrt( t_x * t_x + t_y * t_y );
+printf( "t_l = %f\n", t_l );
+	/* Угол 1 -> 2 шаблона */
+	float t_ang = asin( t_y / t_l );
+	t_ang = ( t_x < 0.0 ) ? ( M_PI - t_ang ) : t_ang;
+	/* Масштабирование определим */
+	float mas = r_l / t_l;
+
+	/* Угол метки определим */
+	float ang = r_ang - t_ang;
+
+	/* Бежим по точкам шаблона пока все совпадает */
+	mark_point * c_pnt = mp + 2;
+	while( c_pnt->type != MP_END )
+	{
+		/* Повернуть относительно точки 1 и сместить */
+		float tx = ( c_pnt->x - mp[ 0 ].x ) * mas;
+		float ty = ( c_pnt->y - mp[ 0 ].y ) * mas;
+		
+		float x = tx * cos( ang ) - ty * sin( ang );
+		float y = tx * sin( ang ) + ty * cos( ang );
+
+		x += circles[ circ1_id ]->x;
+		y += circles[ circ1_id ]->y;
+
+		/* x:y - это место на экране, где должна находиться маркерная точка */
+		
+		c_pnt++;
+	}
 
 	return 0;
 }
