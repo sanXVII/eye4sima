@@ -107,14 +107,17 @@ typedef struct maybe_figure
 
 typedef struct tuzer
 {
-	int x;
-	int y;
+	/* Центр фигуры */
+	float x;
+	float y;
 
-	int dx;
-	int dy;
+	/* Вектор скорости */
+	float dx;
+	float dy;
 
-	int first_x;
-	int first_y;
+	/* Точка, где фигура была обнаружена первый раз. */
+	float first_x;
+	float first_y;
 
 	/* Ожидание первого выхода за радиус */
 	int mv_wait; /* -1:движение уже наблюдалось */
