@@ -31,10 +31,12 @@ typedef struct mark_point
 
 /* Первые две точки маркера обязательно непустые */
 mark_point mark1[] = {
-{  0, 0, MP_FIL }, {  1, 3, MP_FIL }, { -1, 3, MP_FIL },
-{  0, 2, MP_CLR }, { -1, 2, MP_FIL }, {  1, 2, MP_FIL },
-{  0, 1, MP_CLR }, { -1, 1, MP_FIL }, {  1, 1, MP_FIL },
-{ -1, 0, MP_CLR }, {  1, 0, MP_CLR }, {  0, 3, MP_FIL },
+//{  0, 0, MP_FIL }, {  1, 3, MP_FIL }, { -1, 3, MP_FIL },
+{  0, 0, MP_FIL }, {  1, 1, MP_FIL }, { -1, 1, MP_FIL },
+//{  0, 2, MP_CLR }, { -1, 2, MP_FIL }, {  1, 2, MP_FIL },
+//{  0, 1, MP_CLR }, { -1, 1, MP_FIL }, {  1, 1, MP_FIL },
+//{ -1, 0, MP_CLR }, {  1, 0, MP_CLR }, {  0, 3, MP_FIL },
+{ -1, 0, MP_CLR }, {  1, 0, MP_CLR }, {  0, 1, MP_CLR },
 {  0, 0, MP_END }
 };
 
@@ -617,6 +619,36 @@ static void show_tuzer( tuzer * c_tuz )
 }
 
 
+static tuzer * get_tuzer_4gid( float x, float y, float radius_square, int gid )
+{
+	if( ( gid < 0 ) || ( ( gid * sizeof( tuzer * ) ) >= tuz_grid_sz ) )
+		return 0l;
+
+	tuzer * nr_tuz = tuz_grid[ gid ];
+	while( nr_tuz )
+	{
+		float cq = ( nr_tuz->x - x ) * ( nr_tuz->x - x )
+			+ ( nr_tuz->y - y ) * ( nr_tuz->y - y );
+
+		if( cq < radius_square )
+			return nr_tuz;
+
+		nr_tuz = nr_tuz->in_cell;
+	}
+	return 0l;
+}
+
+static mp_type check_mark_point( float x, float y, float radius )
+{
+	int iy, ix;
+	for( iy = (int)( y - radius ) / GRID_WY; iy <= (int)( y + radius ) / GRID_WY; iy++ )
+		for( ix = (int)( x - radius ) / GRID_WX; ix <= (int)( x + radius ) / GRID_WX; ix++ )
+			if( get_tuzer_4gid( x, y, radius * radius, ix + tuz_grid_w * iy ) )
+				return MP_FIL; /* Есть точка */
+	
+	return MP_CLR/* Пусто */;
+}
+
 static int check_marker( mark_point * mp, int circ1_id, int circ2_id )
 {
 	if( circ1_id == circ2_id ) return 0;
@@ -624,15 +656,12 @@ static int check_marker( mark_point * mp, int circ1_id, int circ2_id )
 	/* Координатой маркера будем считать circles[ circ1_id ]->x:y */
 	/* Нужно найти, поворот, масштаб */
 	/* Расстояние circ1 -> circ2 */
-printf( "circ1_id=%i .. circ2_id=%i .. \n", circ1_id, circ2_id );	
-return 0;
 	float r_x = circles[ circ2_id ]->x - circles[ circ1_id ]->x;
 	float r_y = circles[ circ2_id ]->y - circles[ circ1_id ]->y;
 	float r_l = sqrt( r_x * r_x + r_y * r_y );
 
 	if( r_l < circles[ circ1_id ]->radius ) return 0;
 
-printf( "r_l = %f\n", r_l );
 	/* Угол circ1 -> circ2  */
 	float r_ang = asin( r_y / r_l );
 	r_ang = ( r_x < 0.0 ) ? ( M_PI - r_ang ) : r_ang; 
@@ -641,7 +670,7 @@ printf( "r_l = %f\n", r_l );
 	float t_x = mp[ 1 ].x - mp[ 0 ].x;
 	float t_y = mp[ 1 ].y - mp[ 0 ].y;
 	float t_l = sqrt( t_x * t_x + t_y * t_y );
-printf( "t_l = %f\n", t_l );
+
 	/* Угол 1 -> 2 шаблона */
 	float t_ang = asin( t_y / t_l );
 	t_ang = ( t_x < 0.0 ) ? ( M_PI - t_ang ) : t_ang;
@@ -666,11 +695,21 @@ printf( "t_l = %f\n", t_l );
 		y += circles[ circ1_id ]->y;
 
 		/* x:y - это место на экране, где должна находиться маркерная точка */
+		if( check_mark_point( x, y, circles[ circ1_id ]->radius ) != c_pnt->type )
+			return 0; /* маркер не совпал */
 		
 		c_pnt++;
 	}
 
-	return 0;
+	/* Нарисуем для отладки .. */
+glBegin( GL_LINES );
+glColor3f( 1.0, 0.2, 1.0 );
+glVertex3f( circles[ circ1_id ]->x, circles[ circ1_id ]->y, 0 );
+glVertex3f( circles[ circ1_id ]->x + cos( ang ) * 60, circles[ circ1_id ]->y + sin( ang ) * 60, 0 );
+glEnd();
+printf( "Маркер маркер! ..\n" );
+
+	return 1/* Маркер нашелся */;
 }
 
 
@@ -811,28 +850,31 @@ jump_up_tuzer:
 		goto next_tuzer;
 	}
 
-	/* Ищем маркеры */
-	int mrk_fcnt = 0;
-	while( 1 )
-	{ 
-		mrk_fcnt++;
-		if( !( tm_check-- ) )
-		{
-			tm_check += 2500/* только изредка проверяем время */;
-			if( is_time_over( &start_tm, USEC_MARKERS ) )
+	/* Ищем маркеры если есть круги в поле зрения */
+	if( circles_cnt >= 2/* Минимум 2 круга */ )
+	{
+		int mrk_fcnt = 0;
+		while( 1 )
+		{ 
+			mrk_fcnt++;
+			if( !( tm_check-- ) )
 			{
-				/* Выходим из цикла маркеров */
-				printf( "Стоп маркер-цикл на %i пробе.\n", mrk_fcnt );
-				//printf( "circle cnt=%i .. max=%i\n", circles_cnt, max_circles );
-				break;
-                        }
-		}
+				tm_check += 2500/* только изредка проверяем время */;
+				if( is_time_over( &start_tm, USEC_MARKERS ) )
+				{
+					/* Выходим из цикла маркеров */
+					printf( "Стоп маркер-цикл на %i пробе.\n", mrk_fcnt );
+					//printf( "circle cnt=%i .. max=%i\n", circles_cnt, max_circles );
+					break;
+				}
+			}
 
-		/* Выбираем случайно 2 круга и накладываем шаблон */
-		if( check_marker( mark1, rand() % circles_cnt, rand() % circles_cnt ) )
-		{
-			/* Нашелся маркер.. */
-			break;
+			/* Выбираем случайно 2 круга и накладываем шаблон */
+			if( check_marker( mark1, rand() % circles_cnt, rand() % circles_cnt ) )
+			{
+				/* Нашелся маркер.. */
+				break;
+			}
 		}
 	}
 
