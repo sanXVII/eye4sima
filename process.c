@@ -31,12 +31,12 @@ typedef struct mark_point
 
 /* Первые две точки маркера обязательно непустые */
 mark_point mark1[] = {
-//{  0, 0, MP_FIL }, {  1, 3, MP_FIL }, { -1, 3, MP_FIL },
-{  0, 0, MP_FIL }, {  1, 1, MP_FIL }, { -1, 1, MP_FIL },
-//{  0, 2, MP_CLR }, { -1, 2, MP_FIL }, {  1, 2, MP_FIL },
-//{  0, 1, MP_CLR }, { -1, 1, MP_FIL }, {  1, 1, MP_FIL },
-//{ -1, 0, MP_CLR }, {  1, 0, MP_CLR }, {  0, 3, MP_FIL },
-{ -1, 0, MP_CLR }, {  1, 0, MP_CLR }, {  0, 1, MP_CLR },
+{  0, 0, MP_FIL }, {  1, 3, MP_FIL }, { -1, 3, MP_FIL },
+	//{  0, 0, MP_FIL }, {  1, 1, MP_FIL }, { -1, 1, MP_FIL },
+{  0, 2, MP_CLR }, { -1, 2, MP_FIL }, {  1, 2, MP_FIL },
+{  0, 1, MP_CLR }, { -1, 1, MP_FIL }, {  1, 1, MP_FIL },
+{ -1, 0, MP_CLR }, {  1, 0, MP_CLR }, {  0, 3, MP_FIL },
+	//{ -1, 0, MP_CLR }, {  1, 0, MP_CLR }, {  0, 1, MP_CLR },
 {  0, 0, MP_END }
 };
 
@@ -494,8 +494,8 @@ static int X_cycle( img_t * frame, maybe_figure * fig )
 	}
 
 	/* Проверка на окружность */
-	float ci_press = 0.5;
-	step = 0.25;
+	float ci_press = 0.5/* Середина шкалы */;
+	step = 0.25/* Половина середины */;
 	float ci_dist = maybe_sphere( fig, ci_press );
 
 	for( i = 0; i < 6/* Число итераций */; i++ )
@@ -517,6 +517,9 @@ static int X_cycle( img_t * frame, maybe_figure * fig )
 
 		step /= 2.0;
 	}
+
+	if( ( ci_dist > 25.0/* Шаман советует */ ) && ( sq_dist > 25.0 ) )
+		return 0; /* Ни квадрт ни круг */
 
 	fig->is_circle = ( ci_dist < sq_dist ) ? 1/* true */ : 0/* false */;
 	fig->press = ( ci_dist < sq_dist ) ? ci_press : sq_press;
@@ -559,9 +562,12 @@ static void show_tuzer( tuzer * c_tuz )
 	tuz_grid[ tgt_in_gid ] = c_tuz;
 
 	/* Если фигура-круг, то нам нужно учесть его для маркеров */
-	check_circles_cnt();
-	circles[ circles_cnt ] = c_tuz;
-	circles_cnt++;
+	if( c_tuz->is_circle )
+	{
+		check_circles_cnt();
+		circles[ circles_cnt ] = c_tuz;
+		circles_cnt++;
+	}
 		
 	/* --------- Рисуем только для отладки ---------- */	
 	glBegin( GL_LINES );
@@ -677,7 +683,7 @@ static int check_marker( mark_point * mp, int circ1_id, int circ2_id )
 	/* Масштабирование определим */
 	float mas = r_l / t_l;
 
-	/* Угол метки определим */
+	/* Угол метки определим. ang-PI/2 будет направлением движения бота. */
 	float ang = r_ang - t_ang;
 
 	/* Бежим по точкам шаблона пока все совпадает */
@@ -698,16 +704,37 @@ static int check_marker( mark_point * mp, int circ1_id, int circ2_id )
 		if( check_mark_point( x, y, circles[ circ1_id ]->radius ) != c_pnt->type )
 			return 0; /* маркер не совпал */
 		
+		/*------------------  Временно в целях отладки рисуем ------------ */
+		glBegin( GL_LINES );
+		if( c_pnt->type == MP_FIL )
+			glColor3f( 0.2, 0.2, 1.0 );
+		else
+			glColor3f( 0.7, 0.2, 0.2 );
+		glVertex3f( circles[ circ1_id ]->x, circles[ circ1_id ]->y, 0 );
+		glVertex3f( x, y, 0 );
+		glEnd();
+
+
+
 		c_pnt++;
 	}
 
-	/* Нарисуем для отладки .. */
-glBegin( GL_LINES );
-glColor3f( 1.0, 0.2, 1.0 );
-glVertex3f( circles[ circ1_id ]->x, circles[ circ1_id ]->y, 0 );
-glVertex3f( circles[ circ1_id ]->x + cos( ang ) * 60, circles[ circ1_id ]->y + sin( ang ) * 60, 0 );
-glEnd();
-printf( "Маркер маркер! ..\n" );
+
+	/* --------------------- Нарисуем для отладки .. ----------------- */
+	glBegin( GL_LINES );
+	glColor3f( 1.0, 1.0, 1.0 );
+	glVertex3f( circles[ circ1_id ]->x, circles[ circ1_id ]->y, 0 );
+	glVertex3f( circles[ circ2_id ]->x, circles[ circ2_id ]->y, 0 );
+	glEnd();
+
+	glBegin( GL_LINES );
+	glColor3f( 1.0, 0.2, 1.0 );
+	glVertex3f( circles[ circ1_id ]->x, circles[ circ1_id ]->y, 0 );
+	glVertex3f( circles[ circ1_id ]->x + cos( ang - M_PI / 2.0 ) 
+		* 60, circles[ circ1_id ]->y + sin( ang - M_PI / 2.0 ) * 60, 0 );
+	glEnd();
+	printf( "Маркер маркер! ..\n" );
+
 
 	return 1/* Маркер нашелся */;
 }
@@ -758,7 +785,7 @@ void process_rgb_frame( uint8_t *img )
 			if( is_time_over( &start_tm, USEC_SPOTS ) )
 			{
 				/* Выходим из цикла поиска пятен */
-				printf( "Стоп tuzer-цикл на %i тузер.\n", tuz_cnt );
+				printf( "Стоп tuzer-цикл на %i тузер. Кругов: %i\n", tuz_cnt, circles_cnt );
 				break;
 			}
 		}
