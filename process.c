@@ -21,6 +21,7 @@ typedef struct mark_point
 	int x;
 	int y;
 	mp_type type; /* 0-конец 1-точка 2-пусто */
+	struct tuzer * last_detected;
 } mark_point;
 
 
@@ -30,13 +31,11 @@ typedef struct mark_point
 /* ooo */
 
 /* Первые две точки маркера обязательно непустые */
-mark_point mark1[] = {
+static mark_point mark1[] = {
 {  0, 0, MP_FIL }, {  1, 3, MP_FIL }, { -1, 3, MP_FIL },
-	//{  0, 0, MP_FIL }, {  1, 1, MP_FIL }, { -1, 1, MP_FIL },
 {  0, 2, MP_CLR }, { -1, 2, MP_FIL }, {  1, 2, MP_FIL },
 {  0, 1, MP_CLR }, { -1, 1, MP_FIL }, {  1, 1, MP_FIL },
 { -1, 0, MP_CLR }, {  1, 0, MP_CLR }, {  0, 3, MP_FIL },
-	//{ -1, 0, MP_CLR }, {  1, 0, MP_CLR }, {  0, 1, MP_CLR },
 {  0, 0, MP_END }
 };
 
@@ -83,7 +82,6 @@ typedef struct maybe_figure
 
 	float center_x;
 	float center_y;
-	int type; /* 0-unknown. 1-ellipse. 2-parallelogram */
 
 	/* Temporal dataset */
 	int point_Xs[ X_CYCLE_CNT * 4 ];
@@ -97,6 +95,7 @@ typedef struct maybe_figure
 	float radius; /* Самая дальняя точка фигуры */
 
 	/* Тип фигуры */
+	int in_marker;
 	int is_circle; /* 1:круг 0:квадрат */
 	float press;
 
@@ -137,6 +136,7 @@ typedef struct tuzer
 	int is_circle; /* 1:круг 0:квадрат */
 	float press;
 	float radius; /* Самая дальняя точка фигуры */
+	int in_marker;
 } tuzer;
 
 /* Около 2 секунды терпим ошибочные координаты тузера */
@@ -467,35 +467,9 @@ static int X_cycle( img_t * frame, maybe_figure * fig )
 	fig->angle = asin( fig->point_Ys[ fig->far_point_id ] / fig->radius ); /* от -Pi/2 до +Pi/2 */
 	fig->angle = ( fig->point_Xs[ fig->far_point_id ] < 0.0 ) ? ( M_PI - fig->angle ) : fig->angle;
 
-
-	/* Проверка на квадрат */
-	float sq_press = 0.5;
-	float step = 0.25;
-	float sq_dist = maybe_square( fig, sq_press );
-
-	for( i = 0; i < 6/* Число итераций */; i++ )
-	{
-		float left_dist = maybe_square( fig, sq_press - step );
-		float right_dist = maybe_square( fig, sq_press + step );
-
-		if( left_dist < sq_dist )
-		{
-			sq_dist = left_dist;
-			sq_press -= step;
-		}
-
-		if( right_dist < sq_dist )
-		{
-			sq_dist = right_dist;
-			sq_press += step;
-		}
-
-		step /= 2.0;
-	}
-
 	/* Проверка на окружность */
 	float ci_press = 0.5/* Середина шкалы */;
-	step = 0.25/* Половина середины */;
+	float step = 0.25/* Половина середины */;
 	float ci_dist = maybe_sphere( fig, ci_press );
 
 	for( i = 0; i < 6/* Число итераций */; i++ )
@@ -518,11 +492,36 @@ static int X_cycle( img_t * frame, maybe_figure * fig )
 		step /= 2.0;
 	}
 
-	if( ( ci_dist > 25.0/* Шаман советует */ ) && ( sq_dist > 25.0 ) )
+	/* Проверка на квадрат */
+	float sq_press = 0.5;
+	step = 0.25;
+	float sq_dist = maybe_square( fig, sq_press );
+
+	for( i = 0; i < 6/* Число итераций */; i++ )
+	{
+		float left_dist = maybe_square( fig, sq_press - step );
+		float right_dist = maybe_square( fig, sq_press + step );
+
+		if( left_dist < sq_dist )
+		{
+			sq_dist = left_dist;
+			sq_press -= step;
+		}
+
+		if( right_dist < sq_dist )
+		{
+			sq_dist = right_dist;
+			sq_press += step;
+		}
+
+		step /= 2.0;
+	}
+
+	if( ( ci_dist > 25.0 ) && ( sq_dist > 25.0 ) ) /* Шаман советует */
 		return 0; /* Ни квадрт ни круг */
 
-	fig->is_circle = ( ci_dist < sq_dist ) ? 1/* true */ : 0/* false */;
-	fig->press = ( ci_dist < sq_dist ) ? ci_press : sq_press;
+	fig->is_circle = ( ( ci_dist < sq_dist ) || fig->in_marker ) ? 1/* true */ : 0/* false */;
+	fig->press = ( ( ci_dist < sq_dist ) || fig->in_marker ) ? ci_press : sq_press;
 
 	/* Если слишком сплющенный, то отбой */
 	if( fig->press < 0.5 )
@@ -644,12 +643,12 @@ static tuzer * get_tuzer_4gid( float x, float y, float radius_square, int gid )
 	return 0l;
 }
 
-static mp_type check_mark_point( float x, float y, float radius )
+static mp_type check_mark_point( float x, float y, float radius, mark_point * mp )
 {
 	int iy, ix;
 	for( iy = (int)( y - radius ) / GRID_WY; iy <= (int)( y + radius ) / GRID_WY; iy++ )
 		for( ix = (int)( x - radius ) / GRID_WX; ix <= (int)( x + radius ) / GRID_WX; ix++ )
-			if( get_tuzer_4gid( x, y, radius * radius, ix + tuz_grid_w * iy ) )
+			if( ( mp->last_detected = get_tuzer_4gid( x, y, radius * radius, ix + tuz_grid_w * iy ) ) )
 				return MP_FIL; /* Есть точка */
 	
 	return MP_CLR/* Пусто */;
@@ -686,6 +685,7 @@ static int check_marker( mark_point * mp, int circ1_id, int circ2_id )
 	/* Угол метки определим. ang-PI/2 будет направлением движения бота. */
 	float ang = r_ang - t_ang;
 
+
 	/* Бежим по точкам шаблона пока все совпадает */
 	mark_point * c_pnt = mp + 2;
 	while( c_pnt->type != MP_END )
@@ -701,9 +701,9 @@ static int check_marker( mark_point * mp, int circ1_id, int circ2_id )
 		y += circles[ circ1_id ]->y;
 
 		/* x:y - это место на экране, где должна находиться маркерная точка */
-		if( check_mark_point( x, y, circles[ circ1_id ]->radius ) != c_pnt->type )
+		if( check_mark_point( x, y, circles[ circ1_id ]->radius, c_pnt ) != c_pnt->type )
 			return 0; /* маркер не совпал */
-		
+
 		/*------------------  Временно в целях отладки рисуем ------------ */
 		glBegin( GL_LINES );
 		if( c_pnt->type == MP_FIL )
@@ -714,11 +714,21 @@ static int check_marker( mark_point * mp, int circ1_id, int circ2_id )
 		glVertex3f( x, y, 0 );
 		glEnd();
 
-
-
 		c_pnt++;
 	}
 
+	/* Отметим тузеров маркера наградой, ибо они есть маркер */
+	mp[ 0 ].last_detected = circles[ circ1_id ];
+	mp[ 1 ].last_detected = circles[ circ2_id ];
+
+	c_pnt = mp;
+	while( c_pnt->type != MP_END )
+	{
+		if( c_pnt->last_detected )
+			c_pnt->last_detected->in_marker++;
+
+		c_pnt++;
+	}
 
 	/* --------------------- Нарисуем для отладки .. ----------------- */
 	glBegin( GL_LINES );
@@ -814,7 +824,9 @@ void process_rgb_frame( uint8_t *img )
 			? rand() % img_width : ( c_tuz->x + c_tuz->dx );
 		fig.enter_y = ( c_tuz->fail_cnt > FAIL_TOLERANCE ) 
 			? rand() % img_height : ( c_tuz->y + c_tuz->dy );
-		fig.type = 0/* unknown figure */;
+
+		fig.in_marker = c_tuz->in_marker;
+		c_tuz->in_marker = 0/* false */;
 		
 		/* Свободна ли точка? */
 		if( !check_4free( fig.enter_x, fig.enter_y ) )
