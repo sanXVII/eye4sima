@@ -757,7 +757,7 @@ static int is_time_over( struct timespec * start_tm, long usecs )
 
 	long us = ( tm.tv_sec - start_tm->tv_sec ) * 1000000/* мксек в 1 сек */;
 	us += ( tm.tv_nsec - start_tm->tv_nsec ) / 1000/* нсек в 1 мксек */;
-
+//printf( "time %li\n", us );
 	if( us > usecs )
 		return 1; /* yes */
 
@@ -791,7 +791,7 @@ void process_rgb_frame( uint8_t *img )
 
 		if( !( tm_check-- ) )
 		{
-			tm_check += 25/* только изредка проверяем время */;
+			tm_check += 1/* только изредка проверяем время */;
 			if( is_time_over( &start_tm, USEC_SPOTS ) )
 			{
 				/* Выходим из цикла поиска пятен */
@@ -898,7 +898,7 @@ jump_up_tuzer:
 			mrk_fcnt++;
 			if( !( tm_check-- ) )
 			{
-				tm_check += 2500/* только изредка проверяем время */;
+				tm_check += 500/* только изредка проверяем время */;
 				if( is_time_over( &start_tm, USEC_MARKERS ) )
 				{
 					/* Выходим из цикла маркеров */
