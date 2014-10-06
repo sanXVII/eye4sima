@@ -24,20 +24,39 @@ typedef struct mark_point
 	struct tuzer * last_detected;
 } mark_point;
 
+typedef struct marker
+{
+	mark_point * points;
+
+	float det_x;
+	float det_y;
+	float det_ang;
+	float det_len;
+} marker;
+
+
+
+
+
+
 
 /* +o+ */
 /* o+o */
 /* o+o */
 /* ooo */
 
+static mark_point mark1_pts[] = {
 /* Первые две точки маркера обязательно непустые */
-static mark_point mark1[] = {
 {  0, 0, MP_FIL }, {  1, 3, MP_FIL }, { -1, 3, MP_FIL },
 {  0, 2, MP_CLR }, { -1, 2, MP_FIL }, {  1, 2, MP_FIL },
 {  0, 1, MP_CLR }, { -1, 1, MP_FIL }, {  1, 1, MP_FIL },
 { -1, 0, MP_CLR }, {  1, 0, MP_CLR }, {  0, 3, MP_FIL },
-{  0, 0, MP_END }
+{  0, 0, MP_END } 
 };
+
+static marker mark1 = { mark1_pts };
+
+
 
 
 
@@ -52,7 +71,6 @@ typedef struct img_t
 	int width;
 	int height;
 } img_t;
-
 
 typedef struct border_find_t
 {
@@ -103,9 +121,7 @@ typedef struct maybe_figure
 
 
 
-
 /* Для отслеживания кругов и квадратов */
-
 typedef struct tuzer
 {
 	/* Центр фигуры */
@@ -654,8 +670,9 @@ static mp_type check_mark_point( float x, float y, float radius, mark_point * mp
 	return MP_CLR/* Пусто */;
 }
 
-static int check_marker( mark_point * mp, int circ1_id, int circ2_id )
+static int check_marker( marker * mrk, int circ1_id, int circ2_id )
 {
+	mark_point * mp = mrk->points;
 	if( circ1_id == circ2_id ) return 0;
 
 	/* Координатой маркера будем считать circles[ circ1_id ]->x:y */
@@ -730,6 +747,12 @@ static int check_marker( mark_point * mp, int circ1_id, int circ2_id )
 		c_pnt++;
 	}
 
+	mrk->det_x = circles[ circ1_id ]->x;
+	mrk->det_y = circles[ circ1_id ]->y;
+	mrk->det_ang = ang;
+	mrk->det_len = r_l;
+		
+
 	/* --------------------- Нарисуем для отладки .. ----------------- */
 	glBegin( GL_LINES );
 	glColor3f( 1.0, 1.0, 1.0 );
@@ -763,6 +786,43 @@ static int is_time_over( struct timespec * start_tm, long usecs )
 
 	return 0; /* no */
 }
+
+
+
+static void random_point( int * x, int * y )
+{
+	static int help_find_mrk = 0;
+
+	if( !( help_find_mrk-- ) )
+	{
+		/* Иногда поможем в поиске маркера */
+		help_find_mrk += 4;
+
+		if( mark1.det_len > 2.0 )
+		{
+			int bal = ( rand() % ( int )mark1.det_len ) * 1.5;
+			float rang = ( 2 * M_PI * ( float )( rand() % 1440 ) ) / 1440;
+			float dx = bal * cos( rang );
+			float dy = bal * sin( rang );
+
+			*x = mark1.det_x + dx;
+			*y = mark1.det_y + dy;
+
+			/* --------------- Только для отладки нарисуем -------------- */
+			glBegin( GL_LINES );
+			glColor3f( 1.0, 0.3, 0.3 );
+			glVertex3f( *x - 3, *y - 3, 0 );
+			glVertex3f( *x + 3, *y + 3, 0 );
+			glVertex3f( *x + 3, *y - 3, 0 );
+			glVertex3f( *x - 3, *y + 3, 0 );
+			glEnd();
+		}
+	}
+
+	*x = rand() % img_width;
+	*y = rand() % img_height;
+}
+
 
 void process_rgb_frame( uint8_t *img )
 {
@@ -820,10 +880,15 @@ void process_rgb_frame( uint8_t *img )
 
 		maybe_figure fig;
 
-		fig.enter_x = ( c_tuz->fail_cnt > FAIL_TOLERANCE ) 
-			? rand() % img_width : ( c_tuz->x + c_tuz->dx );
-		fig.enter_y = ( c_tuz->fail_cnt > FAIL_TOLERANCE ) 
-			? rand() % img_height : ( c_tuz->y + c_tuz->dy );
+		if( c_tuz->fail_cnt > FAIL_TOLERANCE )
+		{
+			random_point( &( fig.enter_x ), &( fig.enter_y ) );
+		}
+		else
+		{
+			fig.enter_x = c_tuz->x + c_tuz->dx;
+			fig.enter_y = c_tuz->y + c_tuz->dy;
+		}
 
 		fig.in_marker = c_tuz->in_marker;
 		c_tuz->in_marker = 0/* false */;
@@ -909,7 +974,7 @@ jump_up_tuzer:
 			}
 
 			/* Выбираем случайно 2 круга и накладываем шаблон */
-			if( check_marker( mark1, rand() % circles_cnt, rand() % circles_cnt ) )
+			if( check_marker( &mark1, rand() % circles_cnt, rand() % circles_cnt ) )
 			{
 				/* Нашелся маркер.. */
 				break;
