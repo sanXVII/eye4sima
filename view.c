@@ -83,6 +83,8 @@ static unsigned int n_buffers = 0;
 
 static size_t WIDTH = 800;
 static size_t HEIGHT = 480;
+//static size_t WIDTH = 1240;
+//static size_t HEIGHT = 720;
 
 static uint8_t *buffer_sdl;
 SDL_Surface *data_sf;

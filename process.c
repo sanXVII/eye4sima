@@ -422,7 +422,7 @@ static int X_cycle( img_t * frame, maybe_figure * fig )
 	{
 		if( !one_X( frame, fig, (float)( rand() % 1000 ) * 2 * M_PI / 1000.0 ) )
 		{
-			if( ( fail_cnt++ ) > ( X_CYCLE_CNT / 33 ) )
+			if( ( fail_cnt++ ) > ( X_CYCLE_CNT / 25 ) )
 			{
 				/* Слишком много ошибок подряд */
 				return 0; /* A figure is not detected. */
