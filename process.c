@@ -32,6 +32,9 @@ typedef struct marker
 	float det_y;
 	float det_ang;
 	float det_len;
+	float det_mas; /* масштаб */
+
+	int rand_pnt_cursor;
 } marker;
 
 
@@ -751,6 +754,7 @@ static int check_marker( marker * mrk, int circ1_id, int circ2_id )
 	mrk->det_y = circles[ circ1_id ]->y;
 	mrk->det_ang = ang;
 	mrk->det_len = r_l;
+	mrk->det_mas = mas;
 		
 
 	/* --------------------- Нарисуем для отладки .. ----------------- */
@@ -800,22 +804,36 @@ static void random_point( int * x, int * y )
 
 		if( mark1.det_len > 2.0 )
 		{
-			int bal = ( rand() % ( int )mark1.det_len ) * 1.5;
+			/* Сначала подвинем каретку */
+			mark1.rand_pnt_cursor++;
+			while( mark1.points[ mark1.rand_pnt_cursor ].type != MP_FIL )
+				if( mark1.points[ mark1.rand_pnt_cursor ].type == MP_END )
+					mark1.rand_pnt_cursor = 0;
+				else
+					mark1.rand_pnt_cursor++;
+
+			float x0 = mark1.points[ mark1.rand_pnt_cursor ].x * mark1.det_mas;
+			float y0 = mark1.points[ mark1.rand_pnt_cursor ].y * mark1.det_mas;
+			float x1 = cos( mark1.det_ang ) * x0 - sin( mark1.det_ang ) * y0;
+			float y1 = sin( mark1.det_ang ) * x0 + cos( mark1.det_ang ) * y0;
+
+			/* ---------------------- */
+			int bal = ( rand() % ( int )mark1.det_len ) * 0.5;
 			float rang = ( 2 * M_PI * ( float )( rand() % 1440 ) ) / 1440;
 			float dx = bal * cos( rang );
 			float dy = bal * sin( rang );
 
-			*x = mark1.det_x + dx;
-			*y = mark1.det_y + dy;
+			*x = x1 + dx + mark1.det_x;
+			*y = y1 + dy + mark1.det_y;
 
 			/* --------------- Только для отладки нарисуем -------------- */
-			//glBegin( GL_LINES );
-			//glColor3f( 1.0, 0.3, 0.3 );
-			//glVertex3f( *x - 3, *y - 3, 0 );
-			//glVertex3f( *x + 3, *y + 3, 0 );
-			//glVertex3f( *x + 3, *y - 3, 0 );
-			//glVertex3f( *x - 3, *y + 3, 0 );
-			//glEnd();
+			glBegin( GL_LINES );
+			glColor3f( 1.0, 0.3, 0.3 );
+			glVertex3f( *x - 3, *y - 3, 0 );
+			glVertex3f( *x + 3, *y + 3, 0 );
+			glVertex3f( *x + 3, *y - 3, 0 );
+			glVertex3f( *x - 3, *y + 3, 0 );
+			glEnd();
 		}
 	}
 
