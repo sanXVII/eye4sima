@@ -91,7 +91,7 @@ typedef struct border_find_t
 
 } border_find_t;
 
-#define RAY_LEN 100
+#define RAY_LEN 15 /* <- Вот тут сильно ускорили */
 #define X_CYCLE_CNT 200
 typedef struct maybe_figure
 {
@@ -343,10 +343,10 @@ static float maybe_sphere( maybe_figure * fig, float press )
 	for( i = 0; i < fig->point_cnt; i++ )
 	{
 		/* Для начала повернем на angle радианов */
-		float sx = fig->point_Xs[ i ] * cos( angle )
-			- fig->point_Ys[ i ] * sin( angle );
-		float sy = fig->point_Xs[ i ] * sin( angle )
-			+ fig->point_Ys[ i ] * cos( angle );
+		float sx = ( float )fig->point_Xs[ i ] * cos( angle )
+			- ( float )fig->point_Ys[ i ] * sin( angle );
+		float sy = ( float )fig->point_Xs[ i ] * sin( angle )
+			+ ( float )fig->point_Ys[ i ] * cos( angle );
 
 		/* Затем разожмем */
 		sy /= press;
@@ -368,10 +368,10 @@ static float maybe_square( maybe_figure * fig, float press )
 	for( i = 0; i < fig->point_cnt; i++ )
 	{
 		/* Для начала повернем на angle радианов */
-		float sx = fig->point_Xs[ i ] * cos( angle )
-			- fig->point_Ys[ i ] * sin( angle );
-		float sy = fig->point_Xs[ i ] * sin( angle )
-			+ fig->point_Ys[ i ] * cos( angle );
+		float sx = ( float )fig->point_Xs[ i ] * cos( angle )
+			- ( float )fig->point_Ys[ i ] * sin( angle );
+		float sy = ( float )fig->point_Xs[ i ] * sin( angle )
+			+ ( float )fig->point_Ys[ i ] * cos( angle );
 
 		/* Затем разожмем */
 		sy /= press;
@@ -422,16 +422,16 @@ static int X_cycle( img_t * frame, maybe_figure * fig )
 	{
 		if( !one_X( frame, fig, (float)( rand() % 1000 ) * 2 * M_PI / 1000.0 ) )
 		{
-			if( ( fail_cnt++ ) > ( X_CYCLE_CNT / 25 ) )
+			if( ( fail_cnt++ ) > ( X_CYCLE_CNT / 25 ) ) /* ------------ Тут придется шаманить возможно */
 			{
 				/* Слишком много ошибок подряд */
 				return 0; /* A figure is not detected. */
 			}
 		}
-		else
-		{
-			fail_cnt = 0;
-		}
+	//	else
+	//	{
+	//		fail_cnt = 0;
+	//	}
 	}
 
 	/* Найти центр */
@@ -477,7 +477,7 @@ static int X_cycle( img_t * frame, maybe_figure * fig )
 	fig->radius = fig->point_Xs[ fig->far_point_id ] * fig->point_Xs[ fig->far_point_id ]; 
 	fig->radius += fig->point_Ys[ fig->far_point_id ] * fig->point_Ys[ fig->far_point_id ];
 	fig->radius = sqrt( fig->radius );
-	if( fig->radius < 4.0 )
+	if( fig->radius < 2.0 )
 		return 0; /* Слишком мелкое пятно */
 
 	fig->angle = asin( fig->point_Ys[ fig->far_point_id ] / fig->radius ); /* от -Pi/2 до +Pi/2 */
@@ -577,7 +577,7 @@ static void show_tuzer( tuzer * c_tuz )
 	tuz_grid[ tgt_in_gid ] = c_tuz;
 
 	/* Если фигура-круг, то нам нужно учесть его для маркеров */
-	if( c_tuz->is_circle )
+	if( /* c_tuz->is_circle */ c_tuz->mv_wait < 100 ) /* *Скорее всего придется отказаться от кругов */
 	{
 		check_circles_cnt();
 		circles[ circles_cnt ] = c_tuz;
@@ -766,7 +766,7 @@ static int check_marker( marker * mrk, int circ1_id, int circ2_id )
 	glVertex3f( circles[ circ1_id ]->x + cos( ang - M_PI / 2.0 ) 
 		* 60, circles[ circ1_id ]->y + sin( ang - M_PI / 2.0 ) * 60, 0 );
 	glEnd();
-	printf( "Маркер маркер! ..\n" );
+	printf( "Маркер маркер! .. radius = %f\n", circles[ circ1_id ]->radius );
 
 
 	return 1/* Маркер нашелся */;
@@ -809,13 +809,13 @@ static void random_point( int * x, int * y )
 			*y = mark1.det_y + dy;
 
 			/* --------------- Только для отладки нарисуем -------------- */
-			glBegin( GL_LINES );
-			glColor3f( 1.0, 0.3, 0.3 );
-			glVertex3f( *x - 3, *y - 3, 0 );
-			glVertex3f( *x + 3, *y + 3, 0 );
-			glVertex3f( *x + 3, *y - 3, 0 );
-			glVertex3f( *x - 3, *y + 3, 0 );
-			glEnd();
+			//glBegin( GL_LINES );
+			//glColor3f( 1.0, 0.3, 0.3 );
+			//glVertex3f( *x - 3, *y - 3, 0 );
+			//glVertex3f( *x + 3, *y + 3, 0 );
+			//glVertex3f( *x + 3, *y - 3, 0 );
+			//glVertex3f( *x - 3, *y + 3, 0 );
+			//glEnd();
 		}
 	}
 
@@ -855,7 +855,8 @@ void process_rgb_frame( uint8_t *img )
 			if( is_time_over( &start_tm, USEC_SPOTS ) )
 			{
 				/* Выходим из цикла поиска пятен */
-				printf( "Стоп tuzer-цикл на %i тузер. Кругов: %i\n", tuz_cnt, circles_cnt );
+				printf( "Стоп tuzer-цикл на %i тузер. Маркерных точек: %i\n", 
+									tuz_cnt, circles_cnt );
 				break;
 			}
 		}
