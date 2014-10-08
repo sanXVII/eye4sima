@@ -256,7 +256,7 @@ static int mv_border( img_t * img, border_find_t * bf, maybe_figure * fig, float
 		if( bf->cnt_dv )
 		{
 			/* а не граница ли тут */
-			if( /*dv * bf->cnt_dv > bf->sum_dv * bf->wall*/ dv > 390 )
+			if( /*dv * bf->cnt_dv > bf->sum_dv * bf->wall*/ dv > 1200 )
 			{
 				bf->new_center_x += bf->x;
 				bf->new_center_y += bf->y;
@@ -599,6 +599,7 @@ static void show_tuzer( tuzer * c_tuz )
 	glVertex3f( c_tuz->first_x, c_tuz->first_y, 0 );
 	glEnd();
 
+
 	/* -------- Результаты распознавания нарисуем тут (только для отладки) */
 	glColor3f( 0.5, 0.5, 0.5 );
 	if( c_tuz->mv_wait > 100 )
@@ -726,14 +727,14 @@ static int check_marker( marker * mrk, int circ1_id, int circ2_id )
 			return 0; /* маркер не совпал */
 
 		/*------------------  Временно в целях отладки рисуем ------------ */
-		glBegin( GL_LINES );
-		if( c_pnt->type == MP_FIL )
-			glColor3f( 0.2, 0.2, 1.0 );
-		else
-			glColor3f( 0.7, 0.2, 0.2 );
-		glVertex3f( circles[ circ1_id ]->x, circles[ circ1_id ]->y, 0 );
-		glVertex3f( x, y, 0 );
-		glEnd();
+		//glBegin( GL_LINES );
+		//if( c_pnt->type == MP_FIL )
+		//	glColor3f( 0.2, 0.2, 1.0 );
+		//else
+		//	glColor3f( 0.7, 0.2, 0.2 );
+		//glVertex3f( circles[ circ1_id ]->x, circles[ circ1_id ]->y, 0 );
+		//glVertex3f( x, y, 0 );
+		//glEnd();
 
 		c_pnt++;
 	}
@@ -1005,26 +1006,26 @@ jump_up_tuzer:
 
 
 	/* ----------- Распечатаем грид (только для отладки) ----------- */
-	int ix,iy;
-	for( iy = 0; iy < img_height / GRID_WY; iy++ )
-	{
-		for( ix = 0; ix < img_width / GRID_WX; ix++ )
-		{
-			glBegin( GL_LINES );
-			glColor3f( 0.2, 1.0, 1.0 );
+	//int ix,iy;
+	//for( iy = 0; iy < img_height / GRID_WY; iy++ )
+	//{
+	//	for( ix = 0; ix < img_width / GRID_WX; ix++ )
+	//	{
+	//		glBegin( GL_LINES );
+	//		glColor3f( 0.2, 1.0, 1.0 );
 
-			assert( iy * tuz_grid_w + ix < ( tuz_grid_sz / sizeof( tuzer * ) ) );
+	//		assert( iy * tuz_grid_w + ix < ( tuz_grid_sz / sizeof( tuzer * ) ) );
 
-			c_tuz = tuz_grid[ iy * tuz_grid_w + ix ];
-			while( c_tuz )
-			{
-				glVertex3f( c_tuz->x, c_tuz->y, 0 );
-				glVertex3f( ix * GRID_WX, iy * GRID_WY, 0 );
+	//		c_tuz = tuz_grid[ iy * tuz_grid_w + ix ];
+	//		while( c_tuz )
+	//		{
+	//			glVertex3f( c_tuz->x, c_tuz->y, 0 );
+	//			glVertex3f( ix * GRID_WX, iy * GRID_WY, 0 );
 
-				c_tuz = c_tuz->in_cell;
-			}
-			glEnd();
-		}
-	}
+	//			c_tuz = c_tuz->in_cell;
+	//		}
+	//		glEnd();
+	//	}
+	//}
 }
 
