@@ -78,10 +78,10 @@ typedef struct img_t
 typedef struct border_find_t
 {
 	uint8_t * start_pnt;
-	int sum_dv;
+	//int sum_dv;
 	int cnt_dv;
-	int min_dv;
-	int wall;
+	//int min_dv;
+	//int wall;
 
 	int start_x;
 	int start_y;
@@ -250,12 +250,13 @@ static int mv_border( img_t * img, border_find_t * bf, maybe_figure * fig, float
 		int dr = ( *( bf->start_pnt ) - *c_pnt );
 		int dg = ( *( bf->start_pnt + 1 ) - *( c_pnt + 1 ) );
 		int db = ( *( bf->start_pnt + 2 ) - *( c_pnt + 2 ) );
-		int dv = dr * dr + dg * dg + db * db + bf->min_dv;
+		//int dv = dr * dr + dg * dg + db * db + bf->min_dv;
+		int dv = dr * dr + dg * dg + db * db;
 
 		if( bf->cnt_dv )
 		{
 			/* а не граница ли тут */
-			if( dv * bf->cnt_dv > bf->sum_dv * bf->wall )
+			if( /*dv * bf->cnt_dv > bf->sum_dv * bf->wall*/ dv > 390 )
 			{
 				bf->new_center_x += bf->x;
 				bf->new_center_y += bf->y;
@@ -277,7 +278,7 @@ static int mv_border( img_t * img, border_find_t * bf, maybe_figure * fig, float
 		}
 
 		bf->cnt_dv++;
-		bf->sum_dv += dv;
+		//bf->sum_dv += dv;
 	}
 
 	return 0; /* нет границы */
@@ -294,10 +295,10 @@ static int one_X( img_t * img, maybe_figure * fig, float ang )
 	bf_data.start_pnt = img->buf + 3 * 
 		( ( img->height - fig->enter_y ) * img->width + fig->enter_x );
 
-	bf_data.sum_dv = 0;
+	//bf_data.sum_dv = 0;
 	bf_data.cnt_dv = 0;
-	bf_data.wall = 18; /* 22 установлено шаманами */
-	bf_data.min_dv = 14; /* определено шаманами */
+	//bf_data.wall = 18; /* 22(18) установлено шаманами */
+	//bf_data.min_dv = 14; /* 14 определено шаманами */
 	bf_data.start_x = fig->enter_x;
 	bf_data.start_y = fig->enter_y;
 	bf_data.new_center_x = 0;
@@ -827,13 +828,13 @@ static void random_point( int * x, int * y )
 			*y = y1 + dy + mark1.det_y;
 
 			/* --------------- Только для отладки нарисуем -------------- */
-			glBegin( GL_LINES );
-			glColor3f( 1.0, 0.3, 0.3 );
-			glVertex3f( *x - 3, *y - 3, 0 );
-			glVertex3f( *x + 3, *y + 3, 0 );
-			glVertex3f( *x + 3, *y - 3, 0 );
-			glVertex3f( *x - 3, *y + 3, 0 );
-			glEnd();
+			//glBegin( GL_LINES );
+			//glColor3f( 1.0, 0.3, 0.3 );
+			//glVertex3f( *x - 3, *y - 3, 0 );
+			//glVertex3f( *x + 3, *y + 3, 0 );
+			//glVertex3f( *x + 3, *y - 3, 0 );
+			//glVertex3f( *x - 3, *y + 3, 0 );
+			//glEnd();
 		}
 	}
 
