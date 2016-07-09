@@ -1,1 +1,1 @@
-Computer vision for mosaic bots.
+Computer vision module for mosaic bots.
